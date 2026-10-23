@@ -1,0 +1,4 @@
+import type {MetadataRoute} from 'next';
+import {getProducts,getCategories,getPublicSiteUrl} from '@/lib/api';
+export const dynamic='force-dynamic';
+export default async function sitemap():Promise<MetadataRoute.Sitemap>{const [products,categories,siteUrl]=await Promise.all([getProducts().catch(()=>[]),getCategories().catch(()=>[]),getPublicSiteUrl()]);return [{url:siteUrl,changeFrequency:'daily',priority:1},{url:`${siteUrl}/products`,changeFrequency:'daily',priority:.9},...categories.map(c=>({url:`${siteUrl}/category/${c.slug}`,changeFrequency:'weekly' as const,priority:.8})),...['best-sellers','hot-deals'].map(s=>({url:`${siteUrl}/category/${s}`,changeFrequency:'daily' as const,priority:.8})),...products.map(p=>({url:`${siteUrl}/products/${p.slug}`,changeFrequency:'weekly' as const,priority:.7})),{url:`${siteUrl}/info/shipping`,changeFrequency:'monthly',priority:.3},{url:`${siteUrl}/info/privacy`,changeFrequency:'monthly',priority:.3}];}

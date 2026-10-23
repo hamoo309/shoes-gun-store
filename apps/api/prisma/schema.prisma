@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+}
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+enum PaymentMethod {
+  COD
+  INSTAPAY
+}
+enum PaymentStatus {
+  PENDING
+  PENDING_VERIFICATION
+  PAID
+  REJECTED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+model Admin {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  role Role @default(MANAGER)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  sessions Session[]
+  audits Audit[]
+}
+model Session {
+  id String @id
+  adminId String
+  admin Admin @relation(fields:[adminId],references:[id],onDelete:Cascade)
+  csrfToken String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+model Category {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  position Int @default(0)
+  active Boolean @default(true)
+  products ProductCategory[]
+}
+model Product {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  description String
+  price Int
+  compareAtPrice Int?
+  cost Int?
+  published Boolean @default(true)
+  archived Boolean @default(false)
+  featured Boolean @default(false)
+  hotDeal Boolean @default(false)
+  bestSellerRank Int?
+  seoTitle String?
+  seoDescription String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  images ProductImage[]
+  categories ProductCategory[]
+  variants Variant[]
+  orderItems OrderItem[]
+}
+model ProductCategory {
+  productId String
+  categoryId String
+  product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
+  category Category @relation(fields:[categoryId],references:[id],onDelete:Cascade)
+  @@id([productId,categoryId])
+}
+model ProductImage {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
+  url String
+  alt String
+  color String?
+  position Int @default(0)
+  @@index([productId,color,position])
+}
+model Variant {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
+  color String
+  size String
+  sku String @unique
+  stock Int @default(0)
+  lowStockThreshold Int @default(3)
+  active Boolean @default(true)
+  orderItems OrderItem[]
+  @@unique([productId,color,size])
+}
+model Governorate {
+  id String @id @default(cuid())
+  name String @unique
+  shippingFee Int @default(0)
+  shippingCost Int?
+  active Boolean @default(true)
+  orders Order[]
+}
+model Order {
+  id String @id @default(cuid())
+  orderNumber String @unique
+  idempotencyKey String @unique
+  requestHash String
+  accessTokenHash String
+  customerName String
+  phone String
+  address String
+  governorateId String
+  governorate Governorate @relation(fields:[governorateId],references:[id])
+  governorateName String
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  status OrderStatus @default(NEW)
+  transferReference String?
+  proofPath String?
+  paymentRejectionReason String?
+  trackingNumber String?
+  subtotal Int
+  discountTotal Int @default(0)
+  shippingFee Int
+  shippingCost Int?
+  paymentFee Int @default(0)
+  total Int
+  refundedAmount Int @default(0)
+  stockReleased Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveredAt DateTime?
+  collectedAt DateTime?
+  cancelledAt DateTime?
+  returnedAt DateTime?
+  recognizedAt DateTime?
+  items OrderItem[]
+  notes OrderNote[]
+  returns Return[]
+  ledger FinancialEntry[]
+  @@index([createdAt])
+  @@index([status,paymentStatus])
+}
+model OrderItem {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields:[orderId],references:[id],onDelete:Cascade)
+  productId String
+  product Product @relation(fields:[productId],references:[id])
+  variantId String
+  variant Variant @relation(fields:[variantId],references:[id])
+  productName String
+  productSlug String
+  image String?
+  color String
+  size String
+  sku String
+  quantity Int
+  returnedQuantity Int @default(0)
+  unitPrice Int
+  compareAtPrice Int?
+  unitCost Int?
+  lineTotal Int
+  returnItems ReturnItem[]
+}
+model OrderNote {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields:[orderId],references:[id],onDelete:Cascade)
+  text String
+  adminName String
+  createdAt DateTime @default(now())
+}
+model Return {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields:[orderId],references:[id])
+  refundAmount Int
+  reason String
+  adminName String
+  createdAt DateTime @default(now())
+  items ReturnItem[]
+}
+model ReturnItem {
+  id String @id @default(cuid())
+  returnId String
+  return Return @relation(fields:[returnId],references:[id],onDelete:Cascade)
+  orderItemId String
+  orderItem OrderItem @relation(fields:[orderItemId],references:[id])
+  quantity Int
+  restocked Boolean @default(true)
+}
+model FinancialEntry {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields:[orderId],references:[id])
+  kind String
+  revenue Int @default(0)
+  shippingRevenue Int @default(0)
+  costOfGoods Int @default(0)
+  shippingCost Int @default(0)
+  paymentFees Int @default(0)
+  refunds Int @default(0)
+  missingCost Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+model Expense {
+  id String @id @default(cuid())
+  category String
+  description String
+  amount Int
+  date DateTime
+  createdBy String
+  createdAt DateTime @default(now())
+  @@index([date])
+}
+model Setting {
+  key String @id
+  value Json
+}
+model Audit {
+  id String @id @default(cuid())
+  adminId String?
+  admin Admin? @relation(fields:[adminId],references:[id],onDelete:SetNull)
+  adminName String
+  action String
+  entity String
+  entityId String?
+  details Json?
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}

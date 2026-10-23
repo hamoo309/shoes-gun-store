@@ -1,0 +1,12 @@
+import type {FooterConfig} from './footer';
+export type ProductImage = { id: string; url: string; alt: string; position: number; color?: string | null };
+export type Category = { id: string; name: string; slug: string; position?: number; active?: boolean };
+export type HomepageSection = {key:string;name:string;slug:string;visible:boolean;type:'builtin'|'category';categoryActive:boolean};
+export type Variant = { id: string; color: string; size: string; sku: string; stock: number };
+export type Product = { id: string; name: string; slug: string; description: string; price: number; compareAtPrice: number | null; images: ProductImage[]; categories: Category[]; variants: Variant[]; featured: boolean; hotDeal: boolean; salesCount: number; seoTitle?: string; seoDescription?: string };
+export type Governorate = { id: string; name: string; shippingFee: number; active: boolean };
+export type Settings = { storeName: string; logoUrl?: string; whatsappPhone: string; instapayPhone: string; heroTitle: string; heroSubtitle: string; heroImage: string; seoTitle: string; seoDescription: string; siteUrl: string; socialLinks?: Record<string,string>; footer?: FooterConfig; homepageSections?:HomepageSection[] };
+export type CartItem = { variantId: string; productId: string; slug: string; name: string; image: string; color: string; size: string; unitPrice: number; quantity: number; stock: number };
+export type OrderItem = { variantId?: string; productName: string; color: string; size: string; quantity: number; unitPrice: number; lineTotal: number };
+export type Quote = { items: OrderItem[]; subtotal: number; shipping: number; total: number };
+export type PublicOrder = { orderNumber: string; status: string; statusLabel?:string; trackingNumber?:string|null; paymentStatus: string; paymentMethod: string; subtotal: number; shippingFee: number; total: number; customerName: string; governorate: { name: string }; items: OrderItem[]; createdAt: string; transferReference?: string; proofAvailable?:boolean };

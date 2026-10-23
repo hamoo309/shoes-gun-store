@@ -1,0 +1,94 @@
+name: shoes-gun
+services:
+  db:
+    image: postgres:16.15-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shoes_gun
+      POSTGRES_USER: shoesgun
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong hexadecimal POSTGRES_PASSWORD in .env.docker}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shoesgun -d shoes_gun"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [store]
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: shoes-gun-api:local
+    environment: &api-environment
+      DATABASE_URL: postgresql://shoesgun:${POSTGRES_PASSWORD}@db:5432/shoes_gun?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:?Set a stable random SESSION_SECRET in .env.docker}
+      NODE_ENV: production
+      STORAGE_DIR: /app/storage
+      HOST: 0.0.0.0
+      PORT: "4000"
+      WEB_ORIGIN: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    command: ["npm", "run", "db:migrate", "--workspace", "@shoes-gun/api"]
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [store]
+    restart: "no"
+  api:
+    image: shoes-gun-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment: *api-environment
+    command: ["sh", "-c", "node scripts/init-media.mjs && exec node apps/api/dist/server.js"]
+    volumes:
+      - media_data:/app/storage
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 8s
+      retries: 5
+      start_period: 15s
+    networks: [store]
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        API_URL: http://api:4000
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+    image: shoes-gun-web:local
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:4000
+      API_INTERNAL_URL: http://api:4000
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    networks: [store]
+  seed:
+    image: shoes-gun-api:local
+    environment: *api-environment
+    command: ["npm", "run", "db:seed", "--workspace", "@shoes-gun/api"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    profiles: [seed]
+    networks: [store]
+    restart: "no"
+volumes:
+  postgres_data:
+  media_data:
+networks:
+  store:

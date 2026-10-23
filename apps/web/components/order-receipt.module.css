@@ -1,0 +1,5 @@
+.arabic{font-family:var(--font)}
+.arabic h1,.arabic h2,.arabic p,.arabic span,.arabic table{font-family:var(--font);letter-spacing:normal}
+.arabic table{text-align:right}
+.arabic th:last-child,.arabic td:last-child{text-align:left}
+.arabic td{padding-inline:0 10px}

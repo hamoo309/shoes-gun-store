@@ -1,0 +1,231 @@
+{
+  "date": "2026-10-17",
+  "integration": {
+    "passed": 26,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 10474.3456
+  },
+  "build": "passed",
+  "auditKnownVulnerabilities": 0,
+  "httpRoutesPassed": 16,
+  "viewportChecks": [
+    {
+      "route": "storefront",
+      "requestedWidth": 390,
+      "clientWidth": 375,
+      "scrollWidth": 375
+    },
+    {
+      "route": "storefront",
+      "requestedWidth": 768,
+      "clientWidth": 753,
+      "scrollWidth": 753
+    },
+    {
+      "route": "storefront",
+      "requestedWidth": 1440,
+      "clientWidth": 1425,
+      "scrollWidth": 1425
+    },
+    {
+      "route": "product",
+      "requestedWidth": 390,
+      "clientWidth": 375,
+      "scrollWidth": 375
+    },
+    {
+      "route": "checkout",
+      "requestedWidth": 390,
+      "clientWidth": 375,
+      "scrollWidth": 375
+    },
+    {
+      "route": "admin",
+      "requestedWidth": 390,
+      "clientWidth": 375,
+      "scrollWidth": 375
+    }
+  ],
+  "browserOrder": {
+    "created": true,
+    "dashboardVisible": true,
+    "paymentReview": true,
+    "cancelled": true,
+    "inventoryRestored": true,
+    "temporaryAdminDisabled": true
+  },
+  "backupRestore": "passed on isolated PostgreSQL",
+  "composeYaml": "parsed successfully",
+  "dockerRuntime": "not tested - Docker unavailable",
+  "updates20261018": {
+    "integrationTests": 30,
+    "failed": 0,
+    "typecheck": "passed both workspaces",
+    "productionBuild": "passed",
+    "browserQa": "isolated database and media copy",
+    "viewports": [
+      390,
+      768,
+      1440
+    ],
+    "features": [
+      "fixed cart and WhatsApp",
+      "dashboard footer persistence and preview",
+      "per-color product galleries and uploads"
+    ],
+    "originalData": "all application table fingerprints unchanged except additive nullable color column",
+    "migration": "202610180001_color_images"
+  },
+  "repair20261018": {
+    "report": "REPAIR-2026-10-18.md",
+    "sourceIntegrity": "source ZIP matched; only Next-generated next-env.d.ts differed",
+    "causes": [
+      "PostgreSQL received Windows Ctrl+C / 0xC000013A and did not reach query readiness",
+      "installed workspace junctions still targeted the former outputs source location"
+    ],
+    "safetyBackup": {
+      "filesHashVerified": 1446,
+      "location": "work/repair-20261018/before-repair",
+      "logicalSnapshotAfterRecovery": "created"
+    },
+    "database": {
+      "recovery": "automatic recovery of the current saved cluster",
+      "readableApplicationTables": 18,
+      "rowFingerprintsMatchIsolatedPhysicalClone": true,
+      "restoreOverCurrentData": false,
+      "reset": false,
+      "seed": false,
+      "migrationsAppliedDuringRepair": false
+    },
+    "dependencies": "npm ci and Prisma generation passed; workspace junctions target runtime",
+    "typecheck": "passed both workspaces",
+    "productionBuild": "passed",
+    "startupGuardTests": {
+      "command": "node --test tests/local-startup.test.mjs",
+      "passed": 3,
+      "failed": 0,
+      "usesStoreDatabase": false
+    },
+    "externalLauncherColdStart": {
+      "httpStatus": 200,
+      "routes": [
+        "/",
+        "/admin",
+        "/products",
+        "/api/health",
+        "/api/settings"
+      ]
+    },
+    "latestStoreFeaturesPreserved": true,
+    "windowsAutomaticStartupInstalled": false,
+    "npmLocalStopRestart": {
+      "passed": true,
+      "routes": [
+        "/",
+        "/admin",
+        "/products",
+        "/cart",
+        "/api/health",
+        "/api/settings"
+      ],
+      "httpStatus": 200,
+      "tableFingerprintsUnchanged": 18
+    },
+    "alreadyRunningLauncher": "passed without duplicate application",
+    "privateConsoleCtrlC": {
+      "passed": true,
+      "postgresSameProcess": true,
+      "queriesAfterSignal": "passed",
+      "tableFingerprintsUnchanged": 18
+    },
+    "fullTransfer": {
+      "snapshotUTC": "2026-10-18T19:13:22.483Z",
+      "tables": 18,
+      "mediaFiles": 76,
+      "freshLogicalRestore": "passed on isolated PostgreSQL 55437",
+      "restoredStopRestart": "passed",
+      "httpAndOldOrderAccess": "passed",
+      "changedTargetGuard": "passed",
+      "testProcessesStopped": true
+    }
+  },
+  "updates20261021": {
+    "dateCairo": "2026-10-21",
+    "typecheck": "passed both workspaces",
+    "productionBuild": "passed API and web with root environment wrapper",
+    "startupGuardTests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "currentDataQaTests": {
+      "passed": 9,
+      "failed": 0,
+      "isolatedPorts": [
+        55439,
+        3006,
+        4006
+      ],
+      "seed": false,
+      "reset": false
+    },
+    "browser": {
+      "isolatedOnly": true,
+      "layoutArrowsAndVisibilitySaveReload": "passed",
+      "mobilePointerAndKeyboard": "passed",
+      "allSevenStatusesAndFilters": "passed",
+      "customerArabicRTLAndTracking": "passed",
+      "viewports": [
+        {
+          "requested": 390,
+          "client": 376,
+          "scroll": 376
+        },
+        {
+          "requested": 1440,
+          "client": 1425,
+          "scroll": 1425
+        }
+      ],
+      "proof": "outputs/SHOES-GUN-statuses-20261021.png"
+    },
+    "actualColdDatabaseStartup": {
+      "npmDev": "passed",
+      "npmLocal": "passed",
+      "existingLauncher": "passed without duplicate"
+    },
+    "originalData": {
+      "tablesUnchanged": 18,
+      "mediaFilesUnchanged": 76,
+      "privateSettingsUnchanged": true,
+      "migrationsApplied": false
+    },
+    "report": "UPDATES-2026-10-21.md",
+    "safetyBackupFiles": 1575,
+    "features": [
+      "homepage sections order and visibility",
+      "all seven shipping states and counts",
+      "shared Arabic order and payment labels",
+      "database readiness before all startup paths"
+    ],
+    "fullTransfer": {
+      "snapshotUTC": "2026-10-21T12:20:56.787Z",
+      "tables": 18,
+      "mediaFiles": 76,
+      "freshRestore": "passed",
+      "stopRestart": "passed",
+      "allRowAndFileHashes": "passed",
+      "oldPrivateOrderToken": "passed",
+      "savedSettingsAndSecurityKeys": "passed",
+      "changedDatabaseTargetGuard": "passed",
+      "isolatedPorts": [
+        55440,
+        3007,
+        4007
+      ],
+      "qaDataIncluded": false,
+      "testProcessesStopped": true
+    },
+    "independentCodeReview": "passed; no actionable new regression found"
+  }
+}
