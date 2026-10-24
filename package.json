@@ -13,6 +13,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/run.mjs npm run build:apps",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "node -e \"console.log('TypeScript static lint: type checks and unused locals/imports; not ESLint or React Hooks lint.')\" && npm run lint --workspaces --if-present",
     "db:generate": "node scripts/run.mjs npm run db:generate --workspace @shoes-gun/api",
     "db:migrate": "node scripts/run.mjs npm run db:migrate --workspace @shoes-gun/api",
     "db:seed": "node scripts/run.mjs npm run db:seed --workspace @shoes-gun/api",
@@ -20,20 +21,24 @@
     "setup": "node scripts/setup.mjs",
     "db:local": "node scripts/local-db.mjs start",
     "db:stop": "node scripts/local-db.mjs stop",
-    "test": "npm run build --workspace @shoes-gun/api && node scripts/test.mjs",
+    "test": "npm run build --workspace @shoes-gun/api && node --test --test-concurrency=1 tests/auth-security.test.mjs tests/local-startup.test.mjs",
+    "test:auth:isolated": "node --test --test-concurrency=1 tests/auth-production.test.mjs",
+    "test:orders:isolated": "node --test --test-concurrency=1 tests/homepage-shipping.test.mjs",
     "build:apps": "npm run build --workspace @shoes-gun/api && npm run build --workspace @shoes-gun/web",
     "start": "node scripts/start.mjs",
     "backup": "node scripts/backup.mjs",
     "preview:start": "pwsh -NoProfile -File scripts/preview.ps1 start",
     "preview:stop": "pwsh -NoProfile -File scripts/preview.ps1 stop",
     "preview:status": "pwsh -NoProfile -File scripts/preview.ps1 status",
-    "local": "node scripts/open-prepared-runtime.mjs",
+    "local": "node scripts/local-run.mjs",
     "test:startup": "node --test tests/local-startup.test.mjs"
   },
-  "devDependencies": {
-    "deepmerge-ts": "8.0.2",
+  "dependencies": {
     "dotenv": "17.3.1",
     "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "deepmerge-ts": "8.0.2"
   },
   "overrides": {
     "deepmerge-ts": "8.0.2"

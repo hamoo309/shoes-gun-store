@@ -1,0 +1,66 @@
+{
+  "verifiedDate": "2026-10-23",
+  "productionDeployed": false,
+  "liveDatabaseMigrated": false,
+  "authUnits": {
+    "passed": 16,
+    "total": 16
+  },
+  "startupGuards": {
+    "passed": 9,
+    "total": 9
+  },
+  "isolatedAuthIntegration": {
+    "passed": 11,
+    "total": 11
+  },
+  "publicViewportCases": {
+    "total": 30,
+    "failures": 0,
+    "widths": [
+      320,
+      390,
+      768,
+      1024,
+      1440
+    ]
+  },
+  "dashboardCases": {
+    "total": 57,
+    "failures": 0,
+    "errors": 0
+  },
+  "metricRetests": {
+    "total": 4,
+    "clipped": 0
+  },
+  "controlsAtScrollPositions": {
+    "total": 225,
+    "failures": 0
+  },
+  "shoppingInteractionsPassed": true,
+  "knownRuntimeDependencyVulnerabilities": 0,
+  "backupRestore": {
+    "helperBackupRestored": true,
+    "originalTablesMatched": 18,
+    "originalRowsPreserved": 373,
+    "originalAdminAccountsPreserved": 4,
+    "mediaFilesMatched": 76,
+    "sourceDatabaseUntouched": true
+  },
+  "notExecuted": [
+    "Docker image builds and Compose startup",
+    "Real domain TLS/DNS",
+    "Real administrator password login",
+    "Production role grants",
+    "Production database migration",
+    "Production load test"
+  ],
+  "originalFilePreservation": {
+    "postgresFiles": 1373,
+    "mediaFiles": 76,
+    "environmentUnchanged": true
+  },
+  "finalLocalBuildPassed": true,
+  "finalLocalBuildUsesLocalApi": true
+}

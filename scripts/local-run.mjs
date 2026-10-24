@@ -65,7 +65,9 @@ async function main(){
   throw new Error(`Port ${available[0]?apiPort:webPort} is already in use, but SHOES GUN is not ready. Stop the old app terminal and run this file again. No process was stopped automatically.`);
  }
  console.log('Starting the store. Keep this window open while using it.');
- const app=spawn(process.execPath,[join(root,'scripts/start.mjs')],{cwd:root,env:process.env,stdio:'inherit',windowsHide:true});
+ // Only the explicit local runner opts into HTTP preview. The API still
+ // validates that its bind address and every browser origin are loopback.
+ const app=spawn(process.execPath,[join(root,'scripts/start.mjs')],{cwd:root,env:{...process.env,ALLOW_INSECURE_LOCAL_PREVIEW:'true'},stdio:'inherit',windowsHide:true});
  mkdirSync(join(root,'.local'),{recursive:true});
  writeFileSync(join(root,'.local/local-run.pid'),String(process.pid));
  let appExit;let spawnError;

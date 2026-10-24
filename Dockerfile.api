@@ -6,10 +6,7 @@ COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
 RUN npm ci --include=dev
 COPY apps/api ./apps/api
-COPY apps/web/public ./apps/web/public
-COPY scripts/init-media.mjs ./scripts/init-media.mjs
-ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
-RUN npm run db:generate --workspace @shoes-gun/api && npm run build --workspace @shoes-gun/api
+RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npm run db:generate --workspace @shoes-gun/api && npm run build --workspace @shoes-gun/api
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4000 STORAGE_DIR=/app/storage
 RUN mkdir -p /app/storage/products /app/storage/private && chown -R node:node /app
 USER node

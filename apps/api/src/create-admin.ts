@@ -17,7 +17,8 @@ async function main() {
     input.email=input.email||await ask('Admin email: ');input.name=input.name||await ask('Admin name: ');rl.close();input.password=input.password||await hiddenPassword();
   }
   const parsed=z.object({name:z.string().min(2).max(100),email:z.string().email().transform(s=>s.toLowerCase()),password:z.string().min(12).max(200)}).parse(input);
-  const admin=await db.admin.create({data:{name:parsed.name,email:parsed.email,passwordHash:passwordHash(parsed.password),role:'SUPER_ADMIN'}});
-  console.log(`Store owner created: ${admin.email}. No default password was installed.`);
+  const hash=await passwordHash(parsed.password);
+  await db.admin.create({data:{name:parsed.name,email:parsed.email,passwordHash:hash,role:'SUPER_ADMIN'}});
+  console.log('Store owner created. No default password was installed.');
 }
-try{await main();}catch(error){console.error(error instanceof Error?error.message:'Unable to create administrator.');process.exitCode=1;}finally{await db.$disconnect();}
+try{await main();}catch(error){console.error(error instanceof z.ZodError?'Please check the administrator fields.':'Unable to create administrator. Check the input and database connection privately.');process.exitCode=1;}finally{await db.$disconnect();}

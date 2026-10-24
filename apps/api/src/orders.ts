@@ -1,4 +1,4 @@
-import { Prisma, OrderStatus, PaymentStatus } from '@prisma/client';
+import { Prisma, OrderStatus } from '@prisma/client';
 import { createHmac, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { db, invariant, HttpError, sha256, audit } from './lib.js';

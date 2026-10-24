@@ -1,0 +1,186 @@
+{
+  "date": "2026-10-23",
+  "approvedProject": "SHOES-GUN",
+  "sourceCopiesAudited": {
+    "complete": 22,
+    "partial": 2,
+    "archives": 10
+  },
+  "installationAndBuild": {
+    "npmCiPassed": true,
+    "generatedPrismaClient": true,
+    "typecheckPassed": true,
+    "staticLintPassed": true,
+    "staticLintScope": "TypeScript noEmit and noUnusedLocals, not ESLint/React Hooks",
+    "productionBuildPassed": true,
+    "safeDefaultNpmTest": {
+      "tests": 25,
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0
+    },
+    "nodeModulesWorkspaceLinksInsideMain": true
+  },
+  "unitTestsAfter": {
+    "passed": 25,
+    "failed": 0,
+    "skipped": 0
+  },
+  "integration": {
+    "dateCairo": "2026-10-23",
+    "completedAtUTC": "2026-10-23T15:01:24.794Z",
+    "qaDatabasePort": 55446,
+    "qaWebPort": 3016,
+    "qaApiPort": 4016,
+    "results": [
+      {
+        "suite": "auth-production",
+        "expected": 11,
+        "tests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "passedValidation": true,
+        "failingCases": []
+      },
+      {
+        "suite": "homepage-shipping",
+        "expected": 9,
+        "tests": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "passedValidation": true,
+        "failingCases": []
+      }
+    ],
+    "safety": {
+      "realAdministratorLogin": false,
+      "seed": false,
+      "reset": false,
+      "drop": false,
+      "liveMigration": false,
+      "qaOnly": true
+    },
+    "passed": true
+  },
+  "mediaAndColors": {
+    "upload": {
+      "created": true,
+      "storedInQaOnly": true,
+      "webStatus": 200,
+      "apiStatus": 200,
+      "persistedBytesMatchBothResponses": true,
+      "allOriginalMediaPreserved": true,
+      "mainMediaUnchanged": true,
+      "newQaFileCount": 1
+    },
+    "colorGallery": {
+      "publishedProductChecked": true,
+      "selectableColorsChecked": 4,
+      "dedicatedGalleriesChecked": 3,
+      "legacyFallbackColorsChecked": 1,
+      "unknownColorFallbackChecked": true,
+      "actualSharedBrowserHelperMatched": true,
+      "inventoryMutation": false
+    },
+    "quote": {
+      "qaOnly": true,
+      "colorsChecked": 4,
+      "apiQuoteImageMatchesBrowserGallery": true,
+      "generalImageFallbackCovered": true,
+      "inventoryUnchanged": true,
+      "administratorLogin": false,
+      "businessDataWrites": false
+    }
+  },
+  "preservation": {
+    "allOriginalTablesIdentical": true,
+    "tables": 18,
+    "administratorAccounts": 4,
+    "orders": 6,
+    "products": 10,
+    "mediaFilesIdentical": 76,
+    "privateSettingsByteIdentical": true,
+    "noLiveMigrationOrSeed": true,
+    "http": [
+      {
+        "path": "/api/health",
+        "status": 200
+      },
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/products",
+        "status": 200
+      },
+      {
+        "path": "/admin",
+        "status": 200
+      },
+      {
+        "path": "/api/admin/overview",
+        "status": 401
+      }
+    ]
+  },
+  "browser": {
+    "target": "isolated QA only",
+    "homeSettingsAndPublishedProductLoaded": true,
+    "productColorSelectionChangedGallery": true,
+    "sizeSelection": true,
+    "cartAddedAndCountUpdated": true,
+    "quantityChangedAndCountUpdated": true,
+    "cartRemovedAndCountReturnedToZero": true,
+    "checkoutLoadedGovernmentsAndPaymentChoices": true,
+    "instapayFieldsAppeared": true,
+    "noPurchaseSubmittedFromBrowser": true,
+    "mobileEmulationRepeatedThisRun": false,
+    "mobileNote": "Original frontend styles preserved; responsive widths were not re-emulated in this consolidation run."
+  },
+  "cleanup": {
+    "historicalFilesRemoved": 190159,
+    "generatedMainFilesRemoved": 24,
+    "verifiedHistoryArchive": true,
+    "historyRawBytes": 7438894110,
+    "historyArchiveBytes": 3337072544,
+    "historyOnlySpaceReductionBytes": 4101821566
+  },
+  "git": {
+    "historyAndIndexPreserved": true,
+    "originalWorkingTreeWasClean": true,
+    "newCommitsCreated": false,
+    "privatePathsTracked": false,
+    "diffWhitespaceCheckPassed": true
+  },
+  "restartPassed": true,
+  "mainRuntimePathsOwned": true,
+  "originalRecoveryVerified": {
+    "fullOriginalSourceDatabaseSettingsAndMediaVerifiedInArchive": true,
+    "sourceSettingsAndMediaFilesVerified": 216,
+    "coldDatabaseFilesVerified": 1373,
+    "newFilesCopiedThisPass": 0,
+    "remainingOldDirectoryContains": [
+      "node_modules",
+      "scripts",
+      "storage",
+      "tests"
+    ],
+    "remainingReason": "Windows locked/read-only duplicate residue; every original source/settings/media/database file is verified in the recovery archive. No application package or frontend/backend remains active at the old path.",
+    "originalProjectPreservedAt": "archive/consolidation-20261023/original-runtime-preserved"
+  },
+  "notPerformed": [
+    "Publishing/deployment or changing Vercel configuration",
+    "Docker containers/TLS on an actual hosting target",
+    "Login using a real administrator password",
+    "New device-size emulation in this consolidation run"
+  ],
+  "pending": [
+    "Some protected original residue remains outside the main folder; every original source/data/settings/media file has a verified recovery copy."
+  ],
+  "noSeedResetDropOrLiveMigration": true
+}

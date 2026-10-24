@@ -30,7 +30,13 @@ if(-not (Test-Path -LiteralPath (Join-Path $projectRoot 'apps/web/.next/BUILD_ID
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 $nodePath=(Get-Command node.exe).Source
 $scriptPath=Join-Path $PSScriptRoot 'start.mjs'
-$started=Start-Process -FilePath $nodePath -ArgumentList ('"'+$scriptPath+'"') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $runtimeDir 'server.stdout.log') -RedirectStandardError (Join-Path $runtimeDir 'server.stderr.log') -PassThru
+$previousPreviewFlag=$env:ALLOW_INSECURE_LOCAL_PREVIEW
+try {
+  $env:ALLOW_INSECURE_LOCAL_PREVIEW='true'
+  $started=Start-Process -FilePath $nodePath -ArgumentList ('"'+$scriptPath+'"') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $runtimeDir 'server.stdout.log') -RedirectStandardError (Join-Path $runtimeDir 'server.stderr.log') -PassThru
+} finally {
+  $env:ALLOW_INSECURE_LOCAL_PREVIEW=$previousPreviewFlag
+}
 $verified=Get-CimInstance Win32_Process -Filter ('ProcessId='+$started.Id)
 @{id=$started.Id;commandLine=$verified.CommandLine;createdTicks=$verified.CreationDate.ToUniversalTime().Ticks.ToString()} | ConvertTo-Json | Set-Content -LiteralPath $markerPath
 Write-Output 'Starting SHOES GUN preview: http://localhost:3000. Use npm run preview:status or preview:stop.'

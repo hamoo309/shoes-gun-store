@@ -9,7 +9,7 @@ if errorlevel 1 (
   popd
   exit /b 1
 )
-node.exe "scripts\open-prepared-runtime.mjs" %*
+node.exe "scripts\local-run.mjs" %*
 set "SG_EXIT=%errorlevel%"
 popd
 if not "%SG_EXIT%"=="0" pause

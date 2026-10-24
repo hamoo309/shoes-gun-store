@@ -1,12 +1,87 @@
+# ==========================================
+# Dependencies
+# ==========================================
 node_modules/
-.next/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+
+# ==========================================
+# Build Outputs & Compilers
+# ==========================================
 dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# ==========================================
+# Caches & Editors
+# ==========================================
+.cache/
+.turbo/
+.eslintcache
+.stylelintcache
+.prettiercache
+.vscode/
+.idea/
+*.code-workspace
+
+# ==========================================
+# Stray Directories & Archives
+# ==========================================
+archive/
+outputs/
+work/
+transfer/
+private-artifacts/
+backups/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.bak
+
+# ==========================================
+# Local Database & Storage
+# ==========================================
+.local/
+storage/
+uploads/
+*.dump
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+prisma/*.db
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
 .env
 .env.*
 !.env.example
-.local/
-storage/
+!.env.production.example
+
+# ==========================================
+# Logs & Process IDs
+# ==========================================
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# Testing & QA
+# ==========================================
 coverage/
-backups/
-*.zip
+.nyc_output/
+apps/web/public/__qa*.html

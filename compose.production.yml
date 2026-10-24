@@ -1,17 +1,29 @@
 services:
+  db:
+    image: ${POSTGRES_IMAGE:?Set the reviewed PostgreSQL 16 image reference}
+  migrate:
+    image: ${API_IMAGE:?Set a reviewed release tag or digest for API_IMAGE}
+    environment:
+      TRUST_PROXY: ${CADDY_PROXY_IP:?Set the fixed internal IPv4 address of Caddy}
+      ALLOW_INSECURE_LOCAL_PREVIEW: "false"
   api:
+    image: ${API_IMAGE:?Set a reviewed release tag or digest for API_IMAGE}
     environment:
       COOKIE_SECURE: "true"
-      TRUST_PROXY: "1"
+      TRUST_PROXY: ${CADDY_PROXY_IP:?Set the fixed internal IPv4 address of Caddy}
+      ALLOW_INSECURE_LOCAL_PREVIEW: "false"
+      LOGIN_RATE_LIMIT_STORE: postgres
+  web:
+    image: ${WEB_IMAGE:?Set a reviewed release tag or digest for WEB_IMAGE}
   caddy:
-    image: caddy:2-alpine
+    image: ${CADDY_IMAGE:?Set the reviewed Caddy image reference}
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: ${DOMAIN:?Set the final domain in .env.docker}
+      DOMAIN: ${DOMAIN:?Set the final domain in the private production environment file}
       ACME_EMAIL: ${ACME_EMAIL:?Set the TLS certificate contact email}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -19,7 +31,14 @@ services:
       - caddy_config:/config
     depends_on:
       web: {condition: service_healthy}
-    networks: [store]
+    networks:
+      store:
+        ipv4_address: ${CADDY_PROXY_IP:?Set the fixed internal IPv4 address of Caddy}
 volumes:
   caddy_data:
   caddy_config:
+networks:
+  store:
+    ipam:
+      config:
+        - subnet: ${STORE_NETWORK_SUBNET:?Choose a private subnet that does not overlap existing networks}

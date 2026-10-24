@@ -37,7 +37,8 @@ export async function prepareDatabase() {
 
   const loopback = ['127.0.0.1', 'localhost'].includes(uri.hostname);
   const localCluster = existsSync(join(projectRoot, '.local/postgres'));
-  if (loopback && (localCluster || (uri.port || '5432') === '55432')) {
+  const skipLocalDb = process.env.SKIP_LOCAL_DB === 'true' || process.env.DIRECT_DATABASE === 'true';
+  if (!skipLocalDb && loopback && (localCluster || ((uri.port || '5432') === '55432' && (process.env.PG_BIN || existsSync('C:/Program Files/PostgreSQL/16/bin'))))) {
     console.log('Checking the existing SHOES GUN database before starting the store.');
     await runSavedDatabase();
   }

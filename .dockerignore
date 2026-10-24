@@ -5,6 +5,8 @@ node_modules
 .git
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 .local
 storage
@@ -13,3 +15,14 @@ work
 *.log
 tests
 docs
+transfer
+**/transfer
+private-artifacts
+*.dump
+**/*.dump
+*.tsbuildinfo
+**/*.tsbuildinfo
+*.pid
+*.bak
+*.zip
+apps/web/public/__qa*.html

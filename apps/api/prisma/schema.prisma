@@ -49,6 +49,12 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+model AuthLoginAttempt {
+  key String @id
+  attempts Int
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([expiresAt])
+}
 model Category {
   id String @id @default(cuid())
   name String

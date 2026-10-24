@@ -1,25 +1,16 @@
 import 'dotenv/config';
 import { PrismaClient, Prisma } from '@prisma/client';
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { PasswordCapacityError } from './password.js';
 import { DateTime } from 'luxon';
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 
-export const db = new PrismaClient();
+export const db = new PrismaClient({log:[],errorFormat:'minimal'});
 export const TZ = 'Africa/Cairo';
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 export const token = () => randomBytes(32).toString('hex');
-export function passwordHash(password: string) {
-  const salt = randomBytes(16).toString('hex');
-  return `scrypt:${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
-}
-export function verifyPassword(password: string, encoded: string) {
-  const [, salt, digest] = encoded.split(':');
-  if (!salt || !digest) return false;
-  const candidate = scryptSync(password, salt, 64);
-  const expected = Buffer.from(digest, 'hex');
-  return expected.length === candidate.length && timingSafeEqual(expected, candidate);
-}
+export { passwordHash, verifyPassword } from './password.js';
 export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -29,6 +20,7 @@ export function invariant(condition: unknown, status: number, message: string): 
 export const handler = (fn: (req: Request, res: Response, next: NextFunction) => unknown) =>
   (req: Request, res: Response, next: NextFunction) => Promise.resolve(fn(req, res, next)).catch(next);
 export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
+  if (error instanceof PasswordCapacityError) { res.setHeader('Retry-After', '5'); return res.status(503).json({message:'Sign-in is temporarily unavailable. Please try again shortly.'}); }
   if (error instanceof ZodError) return res.status(400).json({ message: 'Please check the supplied fields.', errors: error.flatten() });
   if (error instanceof HttpError) return res.status(error.status).json({ message: error.message });
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -40,7 +32,9 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   if ((error as any)?.name === 'MulterError') return res.status(400).json({message:'Upload one image using the expected file field.'});
   if ((error as any)?.status === 404) return res.status(404).json({message:'Not found.'});
   if (error instanceof SyntaxError && (error as any)?.status === 400) return res.status(400).json({message:'Invalid JSON request.'});
-  console.error(error);
+  // Do not log raw ORM/driver exceptions: query arguments may contain hashes,
+  // session tokens or database connection information.
+  console.error('API request failed.', {category:error instanceof Prisma.PrismaClientKnownRequestError?'database':'internal'});
   return res.status(500).json({message:'Something went wrong. Please try again.'});
 }
 export type Period = {from: Date; to: Date; label: string; timezone: string};

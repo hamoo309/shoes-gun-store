@@ -273,6 +273,6 @@ test('secure admin bootstrap CLI accepts stdin and stores only a scrypt hash',as
  });
  assert.equal(result.code,0,result.output);assert.ok(!result.output.includes(password));
  const created=await db.admin.findUnique({where:{email}});assert.equal(created.role,'SUPER_ADMIN');assert.match(created.passwordHash,/^scrypt:/);
- const [,salt,digest]=created.passwordHash.split(':');assert.equal(scryptSync(password,salt,64).toString('hex'),digest);
+ const {verifyPassword}=await import('../apps/api/dist/password.js');assert.ok(await verifyPassword(password,created.passwordHash),'Created credential must verify using the versioned password implementation.');
  assert.equal(await db.session.count({where:{adminId:created.id}}),0);await db.admin.delete({where:{id:created.id}});
 });

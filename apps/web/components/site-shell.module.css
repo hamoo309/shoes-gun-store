@@ -1,6 +1,4 @@
 .publicFrame {
-  /* A dedicated side rail keeps both fixed controls away from every page's buttons. */
-  padding-right: 36px;
   min-width: 0;
 }
 
@@ -65,15 +63,18 @@
 .preview :global(.footer-whatsapp) { display: flex; }
 .preview :global(.admin-link) { display: inline-flex; }
 
-@media (min-width: 1600px) {
-  .publicFrame { padding-right: 0; }
-}
-
 @media (max-width: 900px) {
-  .publicFrame { padding-right: calc(48px + env(safe-area-inset-right)); }
   .actions { right: max(8px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); gap: 10px; }
   .action { width: 50px; height: 50px; }
   .footerMiddle, .footerMiddle:has(> :nth-child(5)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .publicFrame :global(.product-purchase .selection-block),
+  .publicFrame :global(.product-purchase .purchase-actions),
+  .publicFrame :global(.checkout-section .form-field) { padding-right: 60px; }
+  .publicFrame :global(.product-purchase .product-accordion),
+  .publicFrame :global(.product-purchase .added-cart-link),
+  .publicFrame :global(.checkout-section .payment-option) { margin-right: 60px; }
+  .publicFrame :global(.cart-page .order-summary > .button),
+  .publicFrame :global(.checkout-summary > .confirm-order) { width: calc(100% - 60px); margin-right: 60px; }
 }
 
 @media (max-width: 700px) {

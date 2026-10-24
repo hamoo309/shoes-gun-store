@@ -353,3 +353,11 @@
 @media(max-width:760px){.admin-color-group-heading{align-items:flex-start;flex-direction:column;gap:7px}.admin-color-image-group{padding:12px}.admin-footer-preview-panel>.admin-section-heading{flex-direction:column;align-items:flex-start;padding-inline:18px}.admin-footer-preview-options{justify-content:flex-start}.admin-footer-column-heading{flex-wrap:wrap}.admin-footer-column-heading>.admin-field{flex-basis:100%;max-width:none}.admin-footer-column-heading .admin-inline-actions{margin-top:0}.admin-footer-payments{grid-template-columns:1fr}.admin-footer-preview-panel{padding-inline:0!important}}
 @media(max-width:440px){.admin-color-upload-toolbar{align-items:stretch;flex-direction:column;gap:10px}.admin-color-upload-toolbar>.admin-field{max-width:none}.admin-color-upload-toolbar>.admin-upload-button{align-self:flex-start}.admin-color-image-group{padding:8px}.admin-footer-link-row{grid-template-columns:1fr}.admin-footer-link-row>.admin-inline-actions{grid-column:auto}.admin-footer-column-editor{padding:13px}.admin-footer-preview-options .admin-button{padding-inline:10px!important}}
 @container footer-admin-preview (max-width:580px){.admin-footer-preview .site-footer{padding-top:30px}.admin-footer-preview .footer-top{flex-direction:column;align-items:flex-start;gap:20px;padding-bottom:28px}.admin-footer-preview .footer-top h2{font-size:27px}.admin-footer-preview .footer-middle{grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 18px;padding-block:30px}.admin-footer-preview .footer-brand{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:15px;align-items:flex-start}.admin-footer-preview .footer-brand p{margin:0}.admin-footer-preview .footer-note{grid-column:1/-1;display:block;padding-top:20px;border-top:1px solid #ffffff16}.admin-footer-preview .footer-note p{margin:10px 0}.admin-footer-preview .footer-whatsapp{padding:14px 12px;gap:9px}.admin-footer-preview .footer-bottom{font-size:8px;gap:10px;align-items:flex-start;flex-wrap:wrap}.admin-footer-preview .footer-bottom>span[dir]{display:none}.admin-footer-preview .checkout-store-footer>.container{flex-direction:column;gap:16px;text-align:center}}
+
+@media(max-width:440px){
+  .admin-metric>strong{
+    font-size:clamp(16px,5.2vw,23px);
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+}

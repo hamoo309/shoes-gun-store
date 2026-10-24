@@ -3,44 +3,21 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { randomBytes, randomUUID, createHash, scryptSync } from 'node:crypto';
+import { verifyIsolatedProject } from './isolated-qa.mjs';
 
-const expectedProject = resolve('C:/Users/moham/Documents/Codex/2026-10-16/files-pasted-by-the-user-shoes/work/updates-20261021/qa/shoes-gun');
-const project = process.argv[2] ? resolve(process.argv[2]) : '';
-const canonical = value => resolve(value).replaceAll('\\', '/').toLowerCase();
-assert.equal(canonical(project), canonical(expectedProject), 'Pass only the explicitly allowlisted current-data QA project.');
-assert.equal(canonical(await realpath(project)), canonical(expectedProject), 'QA project must not redirect through a junction or symlink.');
 const require = createRequire(new URL('../package.json', import.meta.url));
-const env = require('dotenv').parse(await readFile(join(project, '.env')));
-const databaseUrl = new URL(env.DATABASE_URL);
-assert.ok(['postgresql:', 'postgres:'].includes(databaseUrl.protocol), 'QA database must use PostgreSQL.');
-assert.equal(databaseUrl.hostname, '127.0.0.1', 'QA must use the explicitly allowlisted loopback host.');
-assert.equal(databaseUrl.port, '55439', 'Refusing any database other than the isolated QA port.');
-assert.ok(!databaseUrl.searchParams.has('schema') || databaseUrl.searchParams.get('schema') === 'public', 'QA tests require the restored public schema.');
-assert.equal(env.WEB_PORT, '3006', 'QA web port must be 3006.');
-assert.equal(env.API_PORT, '4006', 'QA API port must be 4006.');
-const storage = resolve(project, env.UPLOAD_DIR || env.STORAGE_DIR || './storage');
-assert.equal(canonical(await realpath(storage)), canonical(join(expectedProject, 'storage')), 'QA media must belong to the isolated project.');
-const pidLines = (await readFile(join(project, '.local/postgres/postmaster.pid'), 'utf8')).trimEnd().split(/\r?\n/);
-assert.equal(canonical(pidLines[1]), canonical(join(expectedProject, '.local/postgres')), 'QA postmaster must own this exact project.');
-assert.equal(pidLines[3], '55439', 'QA postmaster port does not match the allowlist.');
-const { Client } = require('pg');
-const guardConnection = new Client({ connectionString: env.DATABASE_URL, connectionTimeoutMillis: 5000, query_timeout: 10000 });
-await guardConnection.connect();
-try {
-  const directory = (await guardConnection.query('SHOW data_directory')).rows[0].data_directory;
-  const port = (await guardConnection.query('SHOW port')).rows[0].port;
-  assert.equal(canonical(await realpath(directory)), canonical(join(expectedProject, '.local/postgres')), 'Connected PostgreSQL is not the owned QA cluster.');
-  assert.equal(String(port), '55439', 'Connected PostgreSQL is not the owned QA listener.');
-} finally { await guardConnection.end(); }
+const guarded = await verifyIsolatedProject(process.argv[2] || process.env.SHOES_GUN_QA_ROOT);
+const { project, environment: env, client: guardConnection, apiPort, webPort } = guarded;
+await guardConnection.end();
 
 // No database/file write occurs above this line. The nonce proves that the HTTP
 // server uses this same clone before any mutating HTTP request is permitted.
 const { PrismaClient } = require('@prisma/client');
 const db = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
-const api = 'http://127.0.0.1:4006', web = 'http://localhost:3006';
+const api = `http://127.0.0.1:${apiPort}`, web = `http://localhost:${webPort}`;
 const run = randomBytes(7).toString('hex');
 const tag = `QA Shipping ${run}`;
 const canaryKey = `qa_isolation_${run}`, canaryValue = randomBytes(24).toString('hex');
@@ -138,8 +115,7 @@ before(async () => {
   cookie = login.headers.get('set-cookie')?.split(';')[0] || '';
   csrf = login.json.csrfToken;
   assert.ok(cookie && csrf, 'The isolated admin session was not established.');
-  const privateBrowserFile = resolve(expectedProject, '../../qa-browser.json');
-  assert.equal(canonical(await realpath(resolve(privateBrowserFile, '..'))), canonical(resolve(expectedProject, '../..')), 'Private QA credential location changed.');
+  const privateBrowserFile = join(project, '.local', 'homepage-browser-fixture.json');
   await writeFile(privateBrowserFile, JSON.stringify({ qaOnly: true, project, url: web + '/admin', email, password, createdAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
   variant = await db.variant.findFirst({ where: { active: true, stock: { gte: 2 }, product: { published: true, archived: false } }, orderBy: { stock: 'desc' } });
   governorate = await db.governorate.findFirst({ where: { active: true }, orderBy: { id: 'asc' } });

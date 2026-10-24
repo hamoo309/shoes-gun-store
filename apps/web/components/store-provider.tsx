@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { CartItem, Product } from '@/lib/types';
+import type { CartItem } from '@/lib/types';
 type Store = { cart: CartItem[]; favorites: string[]; ready: boolean; addItem: (item: CartItem) => void; setQuantity: (id: string, quantity: number) => void; removeItem: (id: string) => void; clearCart: () => void; toggleFavorite: (id: string) => void; toast: (message: string) => void };
 const Context = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
