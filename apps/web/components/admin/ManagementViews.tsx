@@ -28,6 +28,9 @@ export function ShippingView({ request, notify }: AdminContext) {
   const [rows, setRows] = useState<RecordData[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
   const [dirty, setDirty] = useState(false);
   const [search, setSearch] = useState('');
   const load = useCallback(async () => { setError(''); try { setRows(listOf(await request('/api/admin/shipping'), 'governorates').map(g => ({ ...g, feeInput: toMoneyInput(g.shippingFee), costInput: g.shippingCost == null ? '' : toMoneyInput(g.shippingCost) }))); setDirty(false); } catch (error: any) { setError(error.message); } }, [request]);
@@ -39,7 +42,88 @@ export function ShippingView({ request, notify }: AdminContext) {
     catch (error: any) { notify(error.message, true); }
     finally { setBusy(false); }
   }
-  return <><div className="admin-notice admin-notice-warning">راجع الأسعار التجريبية واستبدلها بأسعار شركة الشحن الفعلية قبل الإطلاق. تكلفة المتجر منفصلة عن الرسوم التي يدفعها العميل.</div>{error ? <LoadError message={error} retry={load} /> : rows === null ? <Loading /> : <form onSubmit={save}><section className="admin-panel admin-table-panel"><div className="admin-section-heading"><div><h2>محافظات مصر <span className="admin-count">{rows.length}</span></h2><p>المحافظة غير المفعّلة لا تظهر ضمن خيارات Checkout.</p></div><input className="admin-search-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث عن محافظة…" aria-label="بحث المحافظات" /></div><div className="admin-table-wrap"><table className="admin-shipping-table"><thead><tr><th>المحافظة</th><th>رسوم العميل (EGP)</th><th>تكلفة المتجر (EGP)</th><th>متاحة للشحن</th></tr></thead><tbody>{rows.filter(row => (row.name.toLowerCase().includes(search.toLowerCase()) || governorateName(row.name).includes(search))).map(row => <tr key={row.id}><td><strong>{governorateName(row.name)}</strong></td><td><input type="number" min="0" max="100000" step="0.01" required value={row.feeInput} onChange={e => update(row.id, 'feeInput', e.target.value)} aria-label={`رسوم شحن العميل إلى ${row.name}`} /></td><td><input type="number" min="0" max="100000" step="0.01" value={row.costInput} placeholder="غير محددة" onChange={e => update(row.id, 'costInput', e.target.value)} aria-label={`تكلفة شحن المتجر إلى ${row.name}`} /></td><td><label className="admin-switch"><input type="checkbox" checked={row.active} onChange={e => update(row.id, 'active', e.target.checked)} /><span /><small>{row.active ? 'مفعّلة' : 'غير مفعّلة'}</small></label></td></tr>)}</tbody></table></div></section><div className="admin-sticky-save"><span>{dirty ? 'لديك تعديلات لم تُحفظ بعد' : 'أسعار الشحن محدّثة'}</span><button className="admin-button admin-button-primary" disabled={busy || !dirty}>{busy ? 'جارٍ الحفظ…' : 'حفظ كل أسعار الشحن'}</button></div></form>}</>;
+  async function seedGovernorates() {
+    setSeeding(true);
+    try {
+      const data = await request('/api/admin/shipping/seed', { method: 'POST' });
+      setRows(listOf(data, 'governorates').map(g => ({ ...g, feeInput: toMoneyInput(g.shippingFee), costInput: g.shippingCost == null ? '' : toMoneyInput(g.shippingCost) })));
+      setDirty(false);
+      notify('تم استيراد جميع محافظات مصر الـ 27 بالأسعار الاسترشادية.');
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setSeeding(false);
+    }
+  }
+  async function addGovernorate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setAddError('');
+    const form = new FormData(event.currentTarget);
+    try {
+      await request('/api/admin/shipping', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: form.get('name'),
+          shippingFee: toPiasters(form.get('shippingFee')),
+          shippingCost: form.get('shippingCost') ? toPiasters(form.get('shippingCost')) : null,
+          active: form.get('active') === 'on'
+        })
+      });
+      notify('تم إضافة المحافظة بنجاح.');
+      setAdding(false);
+      void load();
+    } catch (err: any) {
+      setAddError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <><div className="admin-toolbar"><p className="admin-muted">راجع الأسعار واستبدلها بأسعار شركة الشحن الفعلية. تكلفة المتجر منفصلة عن الرسوم التي يدفعها العميل.</p><div className="admin-row-actions"><button type="button" className="admin-button" disabled={seeding || busy} onClick={seedGovernorates} title="استيراد الـ 27 محافظة مصرية دفعة واحدة">{seeding ? 'جارٍ الاستيراد…' : '⚡ استيراد محافظات مصر الـ 27'}</button><button type="button" className="admin-button admin-button-primary" onClick={() => { setAdding(true); setAddError(''); }}>+ إضافة محافظة جديدة</button></div></div>{error ? <LoadError message={error} retry={load} /> : rows === null ? <Loading /> : <>
+    {!rows.length ? (
+      <section className="admin-panel admin-table-panel">
+        <Empty title="لم يتم إضافة أي محافظات للشحن بعد" text="لا تتوفر أي محافظة لتحديد أسعار الشحن للعملاء. يمكنك استيراد جميع محافظات مصر الـ 27 دفعة واحدة بالأسعار الاسترشادية، أو إضافة محافظات محددة يدوياً." />
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', padding: '1.5rem' }}>
+          <button type="button" className="admin-button admin-button-primary" disabled={seeding} onClick={seedGovernorates}>{seeding ? 'جارٍ استيراد المحافظات…' : '⚡ استيراد محافظات مصر الـ 27 الآن'}</button>
+          <button type="button" className="admin-button" onClick={() => { setAdding(true); setAddError(''); }}>+ إضافة محافظة يدوياً</button>
+        </div>
+      </section>
+    ) : (
+      <form onSubmit={save}><section className="admin-panel admin-table-panel"><div className="admin-section-heading"><div><h2>محافظات مصر <span className="admin-count">{rows.length}</span></h2><p>المحافظة غير المفعّلة لا تظهر ضمن خيارات Checkout.</p></div><input className="admin-search-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث عن محافظة…" aria-label="بحث المحافظات" /></div><div className="admin-table-wrap"><table className="admin-shipping-table"><thead><tr><th>المحافظة</th><th>رسوم العميل (EGP)</th><th>تكلفة المتجر (EGP)</th><th>متاحة للشحن</th></tr></thead><tbody>{rows.filter(row => (row.name.toLowerCase().includes(search.toLowerCase()) || governorateName(row.name).includes(search))).map(row => <tr key={row.id}><td><strong>{governorateName(row.name)}</strong></td><td><input type="number" min="0" max="100000" step="0.01" required value={row.feeInput} onChange={e => update(row.id, 'feeInput', e.target.value)} aria-label={`رسوم شحن العميل إلى ${row.name}`} /></td><td><input type="number" min="0" max="100000" step="0.01" value={row.costInput} placeholder="غير محددة" onChange={e => update(row.id, 'costInput', e.target.value)} aria-label={`تكلفة شحن المتجر إلى ${row.name}`} /></td><td><label className="admin-switch"><input type="checkbox" checked={row.active} onChange={e => update(row.id, 'active', e.target.checked)} /><span /><small>{row.active ? 'مفعّلة' : 'غير مفعّلة'}</small></label></td></tr>)}</tbody></table></div></section><div className="admin-sticky-save"><span>{dirty ? 'لديك تعديلات لم تُحفظ بعد' : 'أسعار الشحن محدّثة'}</span><button className="admin-button admin-button-primary" disabled={busy || !dirty}>{busy ? 'جارٍ الحفظ…' : 'حفظ كل أسعار الشحن'}</button></div></form>
+    )}
+  </>}
+  {adding && (
+    <Modal title="إضافة محافظة جديدة" onClose={() => setAdding(false)}>
+      <form onSubmit={addGovernorate}>
+        {addError && <div className="admin-notice admin-notice-error" role="alert">{addError}</div>}
+        <label className="admin-field">
+          اسم المحافظة
+          <input name="name" placeholder="مثال: القاهرة أو Cairo" required maxLength={100} />
+        </label>
+        <label className="admin-field">
+          رسوم الشحن للعميل (EGP)
+          <input name="shippingFee" type="number" min="0" max="100000" step="0.01" defaultValue="60.00" required />
+        </label>
+        <label className="admin-field">
+          تكلفة الشحن على المتجر (EGP) · اختياري
+          <input name="shippingCost" type="number" min="0" max="100000" step="0.01" placeholder="مثال: 45.00" />
+        </label>
+        <label className="admin-checkbox">
+          <input type="checkbox" name="active" defaultChecked />
+          المحافظة مفعّلة للشحن في صفحة الدفع
+        </label>
+        <div className="admin-form-footer">
+          <button className="admin-button admin-button-primary" disabled={busy}>
+            {busy ? 'جارٍ الحفظ…' : 'إضافة المحافظة'}
+          </button>
+          <button type="button" className="admin-button" onClick={() => setAdding(false)}>
+            إلغاء
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )}
+  </>;
 }
 
 export function ExpensesView({ request, notify }: AdminContext) {
