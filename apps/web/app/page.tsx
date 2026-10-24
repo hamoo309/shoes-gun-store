@@ -4,17 +4,20 @@ import { ArrowLeft, ArrowUpLeft, Check, Headphones, ShieldCheck, Truck } from 'l
 import { getProducts, getCategories, getSettings, safeJsonLd, resolveSiteUrl } from '@/lib/api';
 import { Collection } from '@/components/collection';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function HomePage() {
-  const [categories, settings] = await Promise.all([
+  const [categories, settings, initialAllProducts] = await Promise.all([
     getCategories().catch(() => []),
-    getSettings().catch(() => null)
+    getSettings().catch(() => null),
+    getProducts('').catch(() => null)
   ]);
 
   const visibleSections = settings?.homepageSections?.filter(section => section.visible && section.categoryActive !== false);
   const initialCategory = visibleSections?.some(section => section.slug === '') ? '' : visibleSections?.[0]?.slug || '';
-  const products = await getProducts(initialCategory ? new URLSearchParams({ category: initialCategory }).toString() : '').catch(() => null);
+  const products = initialCategory === ''
+    ? initialAllProducts
+    : await getProducts(new URLSearchParams({ category: initialCategory }).toString()).catch(() => null);
   const siteUrl = resolveSiteUrl(settings);
   const heroTitle = settings?.heroTitle?.split(/[.\n]+/).map(t => t.trim()).filter(Boolean);
 
@@ -161,17 +164,25 @@ export default async function HomePage() {
       {/* Brand Story & Large Promotional Banner */}
       <section className="story-section" id="about">
         <div className="container story-grid">
-          <div className="story-art">
-            <Image
-              src={settings?.storyImage || '/media/products/sneaker-03.webp'}
-              alt={settings?.storyTitle || 'تفاصيل حذاء من تشكيلة SHOES GUN'}
-              fill
-              sizes="(max-width:700px) 90vw,45vw"
-            />
-            <span className="story-overlay-text" dir="ltr">
-              SHOES<br />GUN.
-            </span>
-            <span className="story-art-tag">ستايل يشبهك  ↗</span>
+          <div className="story-art-frame">
+            <div className="story-art-backdrop" aria-hidden="true" />
+            <div className="story-art">
+              <Image
+                src={settings?.storyImage || '/media/products/sneaker-03.webp'}
+                alt={settings?.storyTitle || 'تفاصيل حذاء من تشكيلة SHOES GUN'}
+                fill
+                loading="lazy"
+                sizes="(max-width: 768px) 92vw, (max-width: 1220px) 46vw, 550px"
+              />
+              <span className="story-overlay-text" dir="ltr">
+                SHOES<br />GUN.
+              </span>
+              <div className="story-art-tag">
+                <span className="story-tag-dot" aria-hidden="true" />
+                <span>ستايل يشبهك</span>
+                <span className="story-tag-arrow" aria-hidden="true">↗</span>
+              </div>
+            </div>
           </div>
           <div className="story-copy">
             <span className="eyebrow">{settings?.storyEyebrow || 'الشارع ملعبك'}</span>

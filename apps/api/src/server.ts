@@ -17,6 +17,8 @@ import { catalog, productInclude, productView, settings } from './catalog.js';
 import { quoteSchema, quote, publicQuote, orderSchema, createOrder, publicOrder, orderInclude } from './orders.js';
 import adminRouter, { storageRoot, imageUpload, saveImage } from './admin.js';
 
+import { memoryCache } from './cache.js';
+
 export const app=express();
 app.disable('x-powered-by');
 app.set('trust proxy',securityConfig.trustProxy);
@@ -35,9 +37,31 @@ app.get('/api/health',h(async(_req,res)=>{
   res.json({status:'ok',service:'SHOES GUN API',currency:'EGP',moneyUnit:'piasters'});
 }));
 app.get('/api/products',h(async(req,res)=>res.json(await catalog(req.query))));
-app.get('/api/products/:slug',h(async(req,res)=>{const product=await db.product.findUnique({where:{slug:String(req.params.slug)},include:productInclude});invariant(product?.published&&!product.archived,404,'Product not found.');res.json(productView(product));}));
-app.get('/api/categories',h(async(_req,res)=>res.json(await db.category.findMany({where:{active:true},orderBy:{position:'asc'}}))));
-app.get('/api/governorates',h(async(_req,res)=>res.json(await db.governorate.findMany({where:{active:true},select:{id:true,name:true,shippingFee:true,active:true},orderBy:{name:'asc'}}))));
+app.get('/api/products/:slug',h(async(req,res)=>{
+  const slug = String(req.params.slug);
+  const cacheKey = `api:product:${slug}`;
+  const cached = memoryCache.get<any>(cacheKey);
+  if (cached) return res.json(cached);
+  const product=await db.product.findUnique({where:{slug},include:productInclude});
+  invariant(product?.published&&!product.archived,404,'Product not found.');
+  const view = productView(product);
+  memoryCache.set(cacheKey, view, 60);
+  res.json(view);
+}));
+app.get('/api/categories',h(async(_req,res)=>{
+  const cached = memoryCache.get<any>('api:categories');
+  if (cached) return res.json(cached);
+  const categories = await db.category.findMany({where:{active:true},orderBy:{position:'asc'}});
+  memoryCache.set('api:categories', categories, 300);
+  res.json(categories);
+}));
+app.get('/api/governorates',h(async(_req,res)=>{
+  const cached = memoryCache.get<any>('api:governorates');
+  if (cached) return res.json(cached);
+  const governorates = await db.governorate.findMany({where:{active:true},select:{id:true,name:true,shippingFee:true,active:true},orderBy:{name:'asc'}});
+  memoryCache.set('api:governorates', governorates, 600);
+  res.json(governorates);
+}));
 app.get('/api/settings',h(async(_req,res)=>res.json(await settings())));
 app.post('/api/orders/quote',h(async(req,res)=>res.json(publicQuote(await quote(quoteSchema.parse(req.body))))));
 const orderLimit=rateLimit({windowMs:60*60*1000,limit:30,standardHeaders:'draft-8',legacyHeaders:false,message:{message:'Too many checkout attempts. Please try again later.'}});

@@ -185,6 +185,8 @@ model OrderItem {
   unitCost Int?
   lineTotal Int
   returnItems ReturnItem[]
+  @@index([productId])
+  @@index([orderId])
 }
 model OrderNote {
   id String @id @default(cuid())

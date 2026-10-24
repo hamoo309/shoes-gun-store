@@ -9,12 +9,13 @@ import path from 'node:path';
 import { DateTime } from 'luxon';
 import { db, handler as h, invariant, audit, passwordHash, csv, TZ, HttpError } from './lib.js';
 import { authenticate, csrf, superAdmin, publicAdmin } from './auth.js';
-import { catalog, productInclude, productSchema, productView, money, settings } from './catalog.js';
+import { catalog, productInclude, productSchema, productView, money, settings, invalidateSalesCounts } from './catalog.js';
 import { orderInclude, adminOrder, updateOrder, payment, returnSchema, processReturn, serial } from './orders.js';
 import { overview } from './reports.js';
 import { footerSchema } from './footer.js';
 import { homepageLayoutSchema, resolvedHomepageSections } from './homepage-layout.js';
 import { ORDER_STATUS_VALUES } from './order-status.js';
+import { memoryCache } from './cache.js';
 
 export const storageRoot=path.resolve(process.env.UPLOAD_DIR || process.env.STORAGE_DIR || './storage');
 export const imageUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024,files:1},fileFilter:(_req,file,cb)=>{ if(!['image/jpeg','image/png','image/webp'].includes(file.mimetype)) return cb(new HttpError(400,'Only JPEG, PNG and WebP images are accepted.')); cb(null,true); }});
@@ -33,6 +34,7 @@ router.get('/products',h(async(req,res)=>res.json(await catalog(req.query,true))
 router.post('/products',h(async(req,res)=>{
   const input=productSchema.parse(req.body);const {categoryIds,images,variants,...data}=input;
   const product=await db.$transaction(async tx=>{const p=await tx.product.create({data:{...data,images:{create:images},variants:{create:variants.map(({id,...v})=>v)},categories:{create:categoryIds.map(categoryId=>({categoryId}))}},include:productInclude});await audit(req.admin!,'PRODUCT_CREATE','Product',p.id,undefined,tx);return p;});
+  memoryCache.invalidate('api:catalog');
   res.status(201).json(productView(product,true));
 }));
 router.patch('/products/:id',h(async(req,res)=>{
@@ -53,9 +55,19 @@ router.patch('/products/:id',h(async(req,res)=>{
     await tx.productCategory.deleteMany({where:{productId:id}});
     const p=await tx.product.update({where:{id},data:{...data,images:{create:images},categories:{create:categoryIds.map(categoryId=>({categoryId}))}},include:productInclude});
     await audit(req.admin!,'PRODUCT_UPDATE','Product',id,undefined,tx);return p;
-  });res.json(productView(product,true));
+  });
+  memoryCache.invalidate('api:catalog');
+  memoryCache.invalidate('api:product');
+  res.json(productView(product,true));
 }));
-router.delete('/products/:id',h(async(req,res)=>{const id=String(req.params.id);await db.product.update({where:{id},data:{archived:true,published:false}});await audit(req.admin!,'PRODUCT_ARCHIVE','Product',id);res.json({ok:true});}));
+router.delete('/products/:id',h(async(req,res)=>{
+  const id=String(req.params.id);
+  await db.product.update({where:{id},data:{archived:true,published:false}});
+  await audit(req.admin!,'PRODUCT_ARCHIVE','Product',id);
+  memoryCache.invalidate('api:catalog');
+  memoryCache.invalidate('api:product');
+  res.json({ok:true});
+}));
 const DEFAULT_CATEGORIES = [
   { name: 'Casual', slug: 'casual', position: 1 },
   { name: 'Sports', slug: 'sports', position: 2 },
@@ -63,10 +75,39 @@ const DEFAULT_CATEGORIES = [
 ] as const;
 const categorySchema=z.object({name:z.string().min(2).max(100),slug:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),position:z.number().int().min(0).default(0),active:z.boolean().default(true)});
 router.get('/categories',h(async(_req,res)=>res.json(await db.category.findMany({include:{_count:{select:{products:true}}},orderBy:{position:'asc'}}))));
-router.post('/categories',h(async(req,res)=>{const category=await db.category.create({data:categorySchema.parse(req.body)});await audit(req.admin!,'CATEGORY_CREATE','Category',category.id);res.status(201).json(category);}));
-router.post('/categories/seed',h(async(req,res)=>{for(const cat of DEFAULT_CATEGORIES){const existing=await db.category.findUnique({where:{slug:cat.slug}});if(!existing) await db.category.create({data:{...cat,active:true}});}await audit(req.admin!,'CATEGORY_SEED','Category',undefined,{count:DEFAULT_CATEGORIES.length});res.json(await db.category.findMany({include:{_count:{select:{products:true}}},orderBy:{position:'asc'}}));}));
-router.patch('/categories/:id',h(async(req,res)=>{const category=await db.category.update({where:{id:String(req.params.id)},data:categorySchema.partial().parse(req.body)});await audit(req.admin!,'CATEGORY_UPDATE','Category',category.id);res.json(category);}));
-router.delete('/categories/:id',h(async(req,res)=>{const id=String(req.params.id);const category=await db.category.findUnique({where:{id},include:{_count:{select:{products:true}}}});invariant(category,404,'القسم غير موجود.');await db.$transaction(async tx=>{await tx.productCategory.deleteMany({where:{categoryId:id}});await tx.category.delete({where:{id}});await audit(req.admin!,'CATEGORY_DELETE','Category',id,{name:category.name,slug:category.slug,linkedProductsCount:category._count.products},tx);});res.json({ok:true,id,name:category.name});}));
+router.post('/categories',h(async(req,res)=>{
+  const category=await db.category.create({data:categorySchema.parse(req.body)});
+  await audit(req.admin!,'CATEGORY_CREATE','Category',category.id);
+  memoryCache.invalidate('api:categories');
+  memoryCache.invalidate('api:settings');
+  memoryCache.invalidate('api:catalog');
+  res.status(201).json(category);
+}));
+router.post('/categories/seed',h(async(req,res)=>{
+  for(const cat of DEFAULT_CATEGORIES){const existing=await db.category.findUnique({where:{slug:cat.slug}});if(!existing) await db.category.create({data:{...cat,active:true}});}
+  await audit(req.admin!,'CATEGORY_SEED','Category',undefined,{count:DEFAULT_CATEGORIES.length});
+  memoryCache.invalidate('api:categories');
+  memoryCache.invalidate('api:settings');
+  memoryCache.invalidate('api:catalog');
+  res.json(await db.category.findMany({include:{_count:{select:{products:true}}},orderBy:{position:'asc'}}));
+}));
+router.patch('/categories/:id',h(async(req,res)=>{
+  const category=await db.category.update({where:{id:String(req.params.id)},data:categorySchema.partial().parse(req.body)});
+  await audit(req.admin!,'CATEGORY_UPDATE','Category',category.id);
+  memoryCache.invalidate('api:categories');
+  memoryCache.invalidate('api:settings');
+  memoryCache.invalidate('api:catalog');
+  res.json(category);
+}));
+router.delete('/categories/:id',h(async(req,res)=>{
+  const id=String(req.params.id);const category=await db.category.findUnique({where:{id},include:{_count:{select:{products:true}}}});
+  invariant(category,404,'القسم غير موجود.');
+  await db.$transaction(async tx=>{await tx.productCategory.deleteMany({where:{categoryId:id}});await tx.category.delete({where:{id}});await audit(req.admin!,'CATEGORY_DELETE','Category',id,{name:category.name,slug:category.slug,linkedProductsCount:category._count.products},tx);});
+  memoryCache.invalidate('api:categories');
+  memoryCache.invalidate('api:settings');
+  memoryCache.invalidate('api:catalog');
+  res.json({ok:true,id,name:category.name});
+}));
 function orderWhere(query:Record<string,unknown>):Prisma.OrderWhereInput {
   const where:Prisma.OrderWhereInput={};
   if(query.search) where.OR=[{orderNumber:{contains:String(query.search),mode:'insensitive'}},{customerName:{contains:String(query.search),mode:'insensitive'}},{phone:{contains:String(query.search)}}];
@@ -85,9 +126,19 @@ router.get('/orders/counts',h(async(req,res)=>{
 }));
 router.get('/orders/:id/proof',h(async(req,res)=>{const o=await db.order.findUnique({where:{id:String(req.params.id)}});invariant(o?.proofPath,404,'No proof has been uploaded.');res.setHeader('Cache-Control','private, no-store');res.type('webp').sendFile(path.join(storageRoot,'private',path.basename(o.proofPath)),{dotfiles:'allow'});}));
 router.get('/orders/:id',h(async(req,res)=>{const o=await db.order.findUnique({where:{id:String(req.params.id)},include:orderInclude});invariant(o,404,'Order not found.');res.json(adminOrder(o));}));
-router.patch('/orders/:id',h(async(req,res)=>{const input=z.object({status:z.enum(ORDER_STATUS_VALUES).optional(),trackingNumber:z.string().max(200).optional(),note:z.string().max(3000).optional()}).parse(req.body);res.json(await updateOrder(String(req.params.id),input,req.admin!));}));
+router.patch('/orders/:id',h(async(req,res)=>{
+  const input=z.object({status:z.enum(ORDER_STATUS_VALUES).optional(),trackingNumber:z.string().max(200).optional(),note:z.string().max(3000).optional()}).parse(req.body);
+  const result=await updateOrder(String(req.params.id),input,req.admin!);
+  if(input.status) { invalidateSalesCounts(); memoryCache.invalidate('api:catalog'); }
+  res.json(result);
+}));
 router.post('/orders/:id/payment',h(async(req,res)=>{const input=z.object({action:z.enum(['confirm','reject']),reason:z.string().max(2000).optional(),paymentFee:money.optional()}).parse(req.body);res.json(await payment(String(req.params.id),input,req.admin!));}));
-router.post('/orders/:id/returns',h(async(req,res)=>res.json(await processReturn(String(req.params.id),returnSchema.parse(req.body),req.admin!))));
+router.post('/orders/:id/returns',h(async(req,res)=>{
+  const result=await processReturn(String(req.params.id),returnSchema.parse(req.body),req.admin!);
+  invalidateSalesCounts();
+  memoryCache.invalidate('api:catalog');
+  res.json(result);
+}));
 const EGYPT_GOVERNORATES = [
   ['cairo','Cairo',6000,4500],['giza','Giza',6000,4500],['alexandria','Alexandria',7500,6000],
   ['dakahlia','Dakahlia',8000,6500],['red-sea','Red Sea',11000,9500],['beheira','Beheira',8000,6500],
@@ -101,9 +152,26 @@ const EGYPT_GOVERNORATES = [
 ] as const;
 const createGovernorateSchema=z.object({name:z.string().trim().min(2).max(100),shippingFee:money,shippingCost:money.nullable().optional(),active:z.boolean().default(true)});
 router.get('/shipping',h(async(_req,res)=>res.json(await db.governorate.findMany({orderBy:{name:'asc'}}))));
-router.post('/shipping',h(async(req,res)=>{const input=createGovernorateSchema.parse(req.body);const existing=await db.governorate.findFirst({where:{name:{equals:input.name,mode:'insensitive'}}});invariant(!existing,400,'هذه المحافظة مسجلة بالفعل.');const gov=await db.governorate.create({data:{name:input.name,shippingFee:input.shippingFee,shippingCost:input.shippingCost??null,active:input.active}});await audit(req.admin!,'GOVERNORATE_CREATE','Governorate',gov.id,{name:gov.name,shippingFee:gov.shippingFee});res.status(201).json(gov);}));
-router.post('/shipping/seed',h(async(req,res)=>{const seedData=EGYPT_GOVERNORATES.map(([slug,name,shippingFee,shippingCost])=>({id:`gov-${slug}`,name,shippingFee,shippingCost,active:true}));await db.governorate.createMany({data:seedData,skipDuplicates:true});await audit(req.admin!,'SHIPPING_SEED','Governorate',undefined,{count:EGYPT_GOVERNORATES.length});res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));}));
-router.put('/shipping',h(async(req,res)=>{const input=z.object({governorates:z.array(z.object({id:z.string(),shippingFee:money,shippingCost:money.nullable(),active:z.boolean()})).max(100)}).parse(req.body);await db.$transaction(async tx=>{for(const g of input.governorates){const {id,...data}=g;await tx.governorate.update({where:{id},data});}await audit(req.admin!,'SHIPPING_UPDATE','Governorate',undefined,undefined,tx);},{timeout:30000});res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));}));
+router.post('/shipping',h(async(req,res)=>{
+  const input=createGovernorateSchema.parse(req.body);const existing=await db.governorate.findFirst({where:{name:{equals:input.name,mode:'insensitive'}}});invariant(!existing,400,'هذه المحافظة مسجلة بالفعل.');
+  const gov=await db.governorate.create({data:{name:input.name,shippingFee:input.shippingFee,shippingCost:input.shippingCost??null,active:input.active}});
+  await audit(req.admin!,'GOVERNORATE_CREATE','Governorate',gov.id,{name:gov.name,shippingFee:gov.shippingFee});
+  memoryCache.invalidate('api:governorates');
+  res.status(201).json(gov);
+}));
+router.post('/shipping/seed',h(async(req,res)=>{
+  const seedData=EGYPT_GOVERNORATES.map(([slug,name,shippingFee,shippingCost])=>({id:`gov-${slug}`,name,shippingFee,shippingCost,active:true}));
+  await db.governorate.createMany({data:seedData,skipDuplicates:true});
+  await audit(req.admin!,'SHIPPING_SEED','Governorate',undefined,{count:EGYPT_GOVERNORATES.length});
+  memoryCache.invalidate('api:governorates');
+  res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));
+}));
+router.put('/shipping',h(async(req,res)=>{
+  const input=z.object({governorates:z.array(z.object({id:z.string(),shippingFee:money,shippingCost:money.nullable(),active:z.boolean()})).max(100)}).parse(req.body);
+  await db.$transaction(async tx=>{for(const g of input.governorates){const {id,...data}=g;await tx.governorate.update({where:{id},data});}await audit(req.admin!,'SHIPPING_UPDATE','Governorate',undefined,undefined,tx);},{timeout:30000});
+  memoryCache.invalidate('api:governorates');
+  res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));
+}));
 const settingSchema=z.object({
   storeName:z.string().min(2).max(100).optional(),
   logoUrl:z.string().max(500).optional(),
@@ -132,7 +200,12 @@ const settingSchema=z.object({
   footer:footerSchema.optional()
 });
 router.get('/settings',h(async(_req,res)=>res.json(await settings())));
-router.put('/settings',h(async(req,res)=>{const input=settingSchema.parse(req.body);await db.$transaction(async tx=>{for(const [key,value] of Object.entries(input)) if(value!==undefined) await tx.setting.upsert({where:{key},create:{key,value},update:{value}});await audit(req.admin!,'SETTINGS_UPDATE','Setting',undefined,undefined,tx);},{timeout:30000});res.json(await settings());}));
+router.put('/settings',h(async(req,res)=>{
+  const input=settingSchema.parse(req.body);
+  await db.$transaction(async tx=>{for(const [key,value] of Object.entries(input)) if(value!==undefined) await tx.setting.upsert({where:{key},create:{key,value},update:{value}});await audit(req.admin!,'SETTINGS_UPDATE','Setting',undefined,undefined,tx);},{timeout:30000});
+  memoryCache.invalidate('api:settings');
+  res.json(await settings(true));
+}));
 router.get('/homepage-layout',h(async(_req,res)=>res.json({sections:(await settings()).homepageSections})));
 router.put('/homepage-layout',h(async(req,res)=>{
   const input=homepageLayoutSchema.parse(req.body);
@@ -144,7 +217,8 @@ router.put('/homepage-layout',h(async(req,res)=>{
     await tx.setting.upsert({where:{key:'homepageSections'},create:{key:'homepageSections',value},update:{value}});
     await audit(req.admin!,'SETTINGS_UPDATE','Setting','homepageSections',{sections:value},tx);
   });
-  res.json({sections:(await settings()).homepageSections});
+  memoryCache.invalidate('api:settings');
+  res.json({sections:(await settings(true)).homepageSections});
 }));
 const expenseSchema=z.object({category:z.string().min(2).max(100),description:z.string().min(3).max(2000),amount:money.refine(n=>n>0),date:z.string().refine(d=>DateTime.fromISO(d,{zone:TZ}).isValid,'Invalid expense date.')});
 router.get('/expenses',h(async(_req,res)=>res.json(await db.expense.findMany({orderBy:{date:'desc'},take:1000}))));

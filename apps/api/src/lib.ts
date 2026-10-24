@@ -6,7 +6,22 @@ import { DateTime } from 'luxon';
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 
-export const db = new PrismaClient({log:[],errorFormat:'minimal'});
+function buildPrismaUrl(): string | undefined {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return undefined;
+  if (raw.includes('-pooler.') && !raw.includes('pgbouncer=true')) {
+    const separator = raw.includes('?') ? '&' : '?';
+    return `${raw}${separator}pgbouncer=true&connection_limit=10`;
+  }
+  return raw;
+}
+
+const resolvedDbUrl = buildPrismaUrl();
+export const db = new PrismaClient({
+  ...(resolvedDbUrl ? { datasources: { db: { url: resolvedDbUrl } } } : {}),
+  log: [],
+  errorFormat: 'minimal'
+});
 export const TZ = 'Africa/Cairo';
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 export const token = () => randomBytes(32).toString('hex');
