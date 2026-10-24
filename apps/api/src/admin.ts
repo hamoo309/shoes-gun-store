@@ -56,11 +56,17 @@ router.patch('/products/:id',h(async(req,res)=>{
   });res.json(productView(product,true));
 }));
 router.delete('/products/:id',h(async(req,res)=>{const id=String(req.params.id);await db.product.update({where:{id},data:{archived:true,published:false}});await audit(req.admin!,'PRODUCT_ARCHIVE','Product',id);res.json({ok:true});}));
+const DEFAULT_CATEGORIES = [
+  { name: 'Casual', slug: 'casual', position: 1 },
+  { name: 'Sports', slug: 'sports', position: 2 },
+  { name: 'Fashion', slug: 'fashion', position: 3 }
+] as const;
 const categorySchema=z.object({name:z.string().min(2).max(100),slug:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),position:z.number().int().min(0).default(0),active:z.boolean().default(true)});
-router.get('/categories',h(async(_req,res)=>res.json(await db.category.findMany({orderBy:{position:'asc'}}))));
+router.get('/categories',h(async(_req,res)=>res.json(await db.category.findMany({include:{_count:{select:{products:true}}},orderBy:{position:'asc'}}))));
 router.post('/categories',h(async(req,res)=>{const category=await db.category.create({data:categorySchema.parse(req.body)});await audit(req.admin!,'CATEGORY_CREATE','Category',category.id);res.status(201).json(category);}));
+router.post('/categories/seed',h(async(req,res)=>{for(const cat of DEFAULT_CATEGORIES){const existing=await db.category.findUnique({where:{slug:cat.slug}});if(!existing) await db.category.create({data:{...cat,active:true}});}await audit(req.admin!,'CATEGORY_SEED','Category',undefined,{count:DEFAULT_CATEGORIES.length});res.json(await db.category.findMany({include:{_count:{select:{products:true}}},orderBy:{position:'asc'}}));}));
 router.patch('/categories/:id',h(async(req,res)=>{const category=await db.category.update({where:{id:String(req.params.id)},data:categorySchema.partial().parse(req.body)});await audit(req.admin!,'CATEGORY_UPDATE','Category',category.id);res.json(category);}));
-router.delete('/categories/:id',h(async(req,res)=>{await db.category.update({where:{id:String(req.params.id)},data:{active:false}});await audit(req.admin!,'CATEGORY_DISABLE','Category',String(req.params.id));res.json({ok:true});}));
+router.delete('/categories/:id',h(async(req,res)=>{const id=String(req.params.id);const category=await db.category.findUnique({where:{id},include:{_count:{select:{products:true}}}});invariant(category,404,'القسم غير موجود.');await db.$transaction(async tx=>{await tx.productCategory.deleteMany({where:{categoryId:id}});await tx.category.delete({where:{id}});await audit(req.admin!,'CATEGORY_DELETE','Category',id,{name:category.name,slug:category.slug,linkedProductsCount:category._count.products},tx);});res.json({ok:true,id,name:category.name});}));
 function orderWhere(query:Record<string,unknown>):Prisma.OrderWhereInput {
   const where:Prisma.OrderWhereInput={};
   if(query.search) where.OR=[{orderNumber:{contains:String(query.search),mode:'insensitive'}},{customerName:{contains:String(query.search),mode:'insensitive'}},{phone:{contains:String(query.search)}}];
@@ -96,11 +102,37 @@ const EGYPT_GOVERNORATES = [
 const createGovernorateSchema=z.object({name:z.string().trim().min(2).max(100),shippingFee:money,shippingCost:money.nullable().optional(),active:z.boolean().default(true)});
 router.get('/shipping',h(async(_req,res)=>res.json(await db.governorate.findMany({orderBy:{name:'asc'}}))));
 router.post('/shipping',h(async(req,res)=>{const input=createGovernorateSchema.parse(req.body);const existing=await db.governorate.findFirst({where:{name:{equals:input.name,mode:'insensitive'}}});invariant(!existing,400,'هذه المحافظة مسجلة بالفعل.');const gov=await db.governorate.create({data:{name:input.name,shippingFee:input.shippingFee,shippingCost:input.shippingCost??null,active:input.active}});await audit(req.admin!,'GOVERNORATE_CREATE','Governorate',gov.id,{name:gov.name,shippingFee:gov.shippingFee});res.status(201).json(gov);}));
-router.post('/shipping/seed',h(async(req,res)=>{await db.$transaction(async tx=>{for(const [slug,name,shippingFee,shippingCost] of EGYPT_GOVERNORATES){await tx.governorate.upsert({where:{name},create:{id:`gov-${slug}`,name,shippingFee,shippingCost,active:true},update:{}});}await audit(req.admin!,'SHIPPING_SEED','Governorate',undefined,{count:EGYPT_GOVERNORATES.length},tx);});res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));}));
-router.put('/shipping',h(async(req,res)=>{const input=z.object({governorates:z.array(z.object({id:z.string(),shippingFee:money,shippingCost:money.nullable(),active:z.boolean()})).max(100)}).parse(req.body);await db.$transaction(async tx=>{for(const g of input.governorates){const {id,...data}=g;await tx.governorate.update({where:{id},data});}await audit(req.admin!,'SHIPPING_UPDATE','Governorate',undefined,undefined,tx);});res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));}));
-const settingSchema=z.object({storeName:z.string().min(2).max(100).optional(),logoUrl:z.string().max(500).optional(),whatsappPhone:z.string().regex(/^\+?\d{10,15}$/).optional(),instapayPhone:z.string().regex(/^\+?\d{10,15}$/).optional(),heroTitle:z.string().max(300).optional(),heroSubtitle:z.string().max(500).optional(),heroImage:z.string().max(500).optional(),seoTitle:z.string().max(200).optional(),seoDescription:z.string().max(500).optional(),siteUrl:z.string().url().refine(v=>/^https?:\/\//.test(v)).optional(),socialLinks:z.record(z.string().url().refine(v=>v.startsWith('https://'))).optional(),footer:footerSchema.optional()});
+router.post('/shipping/seed',h(async(req,res)=>{const seedData=EGYPT_GOVERNORATES.map(([slug,name,shippingFee,shippingCost])=>({id:`gov-${slug}`,name,shippingFee,shippingCost,active:true}));await db.governorate.createMany({data:seedData,skipDuplicates:true});await audit(req.admin!,'SHIPPING_SEED','Governorate',undefined,{count:EGYPT_GOVERNORATES.length});res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));}));
+router.put('/shipping',h(async(req,res)=>{const input=z.object({governorates:z.array(z.object({id:z.string(),shippingFee:money,shippingCost:money.nullable(),active:z.boolean()})).max(100)}).parse(req.body);await db.$transaction(async tx=>{for(const g of input.governorates){const {id,...data}=g;await tx.governorate.update({where:{id},data});}await audit(req.admin!,'SHIPPING_UPDATE','Governorate',undefined,undefined,tx);},{timeout:30000});res.json(await db.governorate.findMany({orderBy:{name:'asc'}}));}));
+const settingSchema=z.object({
+  storeName:z.string().min(2).max(100).optional(),
+  logoUrl:z.string().max(500).optional(),
+  whatsappPhone:z.string().regex(/^\+?\d{10,15}$/).optional(),
+  instapayPhone:z.string().regex(/^\+?\d{10,15}$/).optional(),
+  heroBadge:z.string().max(200).optional(),
+  heroTitle:z.string().max(300).optional(),
+  heroSubtitle:z.string().max(500).optional(),
+  heroDescription:z.string().max(1000).optional(),
+  heroCtaText:z.string().max(100).optional(),
+  heroCtaLink:z.string().max(500).optional(),
+  heroImage:z.string().max(500).optional(),
+  storyEyebrow:z.string().max(200).optional(),
+  storyTitle:z.string().max(300).optional(),
+  storyDescription:z.string().max(2000).optional(),
+  storyImage:z.string().max(500).optional(),
+  storyCtaText:z.string().max(100).optional(),
+  storyCtaLink:z.string().max(500).optional(),
+  collectionEyebrow:z.string().max(200).optional(),
+  collectionTitle:z.string().max(300).optional(),
+  collectionSubtitle:z.string().max(500).optional(),
+  seoTitle:z.string().max(200).optional(),
+  seoDescription:z.string().max(500).optional(),
+  siteUrl:z.string().url().refine(v=>/^https?:\/\//.test(v)).optional(),
+  socialLinks:z.record(z.string().url().refine(v=>v.startsWith('https://'))).optional(),
+  footer:footerSchema.optional()
+});
 router.get('/settings',h(async(_req,res)=>res.json(await settings())));
-router.put('/settings',h(async(req,res)=>{const input=settingSchema.parse(req.body);await db.$transaction(async tx=>{for(const [key,value] of Object.entries(input)) if(value!==undefined) await tx.setting.upsert({where:{key},create:{key,value},update:{value}});await audit(req.admin!,'SETTINGS_UPDATE','Setting',undefined,undefined,tx);});res.json(await settings());}));
+router.put('/settings',h(async(req,res)=>{const input=settingSchema.parse(req.body);await db.$transaction(async tx=>{for(const [key,value] of Object.entries(input)) if(value!==undefined) await tx.setting.upsert({where:{key},create:{key,value},update:{value}});await audit(req.admin!,'SETTINGS_UPDATE','Setting',undefined,undefined,tx);},{timeout:30000});res.json(await settings());}));
 router.get('/homepage-layout',h(async(_req,res)=>res.json({sections:(await settings()).homepageSections})));
 router.put('/homepage-layout',h(async(req,res)=>{
   const input=homepageLayoutSchema.parse(req.body);

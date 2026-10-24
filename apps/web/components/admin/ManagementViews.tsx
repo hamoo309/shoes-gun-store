@@ -8,7 +8,9 @@ export function CategoriesView({ request, notify }: AdminContext) {
   const [categories, setCategories] = useState<RecordData[] | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<RecordData | null | undefined>(undefined);
+  const [deleting, setDeleting] = useState<RecordData | null>(null);
   const [busy, setBusy] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [formError, setFormError] = useState('');
   const load = useCallback(async () => { setError(''); try { setCategories(listOf(await request('/api/admin/categories'), 'categories')); } catch (error: any) { setError(error.message); } }, [request]);
   useEffect(() => { void load(); }, [load]);
@@ -19,8 +21,65 @@ export function CategoriesView({ request, notify }: AdminContext) {
     catch (error: any) { setFormError(error.message); }
     finally { setBusy(false); }
   }
-  return <><div className="admin-toolbar"><p className="admin-muted">نظّم المنتجات بالتصنيفات. تحكّم في ترتيبها مع Hot Deals وBest Sellers من «ترتيب أقسام الرئيسية».</p><button className="admin-button admin-button-primary" onClick={() => { setEditing(null); setFormError(''); }}>+ إضافة قسم</button></div>{error ? <LoadError message={error} retry={load} /> : categories === null ? <Loading /> : <section className="admin-panel admin-table-panel"><div className="admin-table-wrap"><table><thead><tr><th>القسم</th><th>الرابط</th><th>الترتيب</th><th>المنتجات</th><th>الحالة</th><th /></tr></thead><tbody>{[...categories].sort((a, b) => a.position - b.position).map(category => <tr key={category.id}><td><strong dir="ltr">{category.name}</strong></td><td dir="ltr">/{category.slug}</td><td>{category.position}</td><td>{category._count?.products ?? category.products?.length ?? '—'}</td><td><span className={`admin-badge ${category.active ? 'admin-badge-delivered' : 'admin-badge-cancelled'}`}>{category.active ? 'مفعّل' : 'غير مفعّل'}</span></td><td><button className="admin-button admin-button-small" onClick={() => { setEditing(category); setFormError(''); }}>تعديل</button></td></tr>)}</tbody></table></div>{!categories.length && <Empty title="لم تُضف أقسام بعد" text="أضف Casual أو Sports أو Fashion لتنظيم التشكيلة." />}</section>}
-    {editing !== undefined && <Modal title={editing ? 'تعديل القسم' : 'إضافة قسم'} onClose={() => setEditing(undefined)}><form onSubmit={submit}>{formError && <div className="admin-notice admin-notice-error" role="alert">{formError}</div>}<label className="admin-field">اسم القسم (بالإنجليزية)<input name="name" defaultValue={editing?.name} dir="ltr" required maxLength={100} /></label><label className="admin-field">الرابط المختصر · Slug<input name="slug" defaultValue={editing?.slug} dir="ltr" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={120} /></label><label className="admin-field">ترتيب الظهور<input name="position" type="number" min="0" step="1" defaultValue={editing?.position ?? categories?.length ?? 0} required /></label><label className="admin-checkbox"><input type="checkbox" name="active" defaultChecked={editing?.active ?? true} /> القسم مفعّل</label><p className="admin-info-text">ربط المنتجات بالأقسام متاح من نموذج تعديل كل منتج. ترتيب جميع أزرار الأقسام في الرئيسية من <a className="admin-text-link" href="/admin?view=homepage-layout">ترتيب أقسام الرئيسية</a>.</p><div className="admin-form-footer"><button className="admin-button admin-button-primary" disabled={busy}>{busy ? 'جارٍ الحفظ…' : 'حفظ القسم'}</button><button type="button" className="admin-button" onClick={() => setEditing(undefined)}>إلغاء</button></div></form></Modal>}
+  async function seedStandardCategories() {
+    setSeeding(true);
+    try {
+      const data = await request('/api/admin/categories/seed', { method: 'POST' });
+      setCategories(listOf(data, 'categories'));
+      notify('تم استيراد الأقسام القياسية (Casual, Sports, Fashion) بنجاح.');
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setSeeding(false);
+    }
+  }
+  async function deleteCategory() {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await request(`/api/admin/categories/${deleting.id}`, { method: 'DELETE' });
+      setCategories(current => current?.filter(c => c.id !== deleting.id) || []);
+      notify(`تم حذف القسم «${deleting.name}» بنجاح.`);
+      setDeleting(null);
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <><div className="admin-toolbar"><p className="admin-muted">نظّم المنتجات بالتصنيفات. تحكّم في ترتيبها مع Hot Deals وBest Sellers من «ترتيب أقسام الرئيسية».</p><div className="admin-row-actions"><button type="button" className="admin-button" disabled={seeding || busy} onClick={seedStandardCategories} title="استيراد أقسام المتجر القياسية">{seeding ? 'جارٍ الاستيراد…' : '⚡ استيراد الأقسام القياسية'}</button><button className="admin-button admin-button-primary" onClick={() => { setEditing(null); setFormError(''); }}>+ إضافة قسم</button></div></div>{error ? <LoadError message={error} retry={load} /> : categories === null ? <Loading /> : <section className="admin-panel admin-table-panel"><div className="admin-table-wrap"><table><thead><tr><th>القسم</th><th>الرابط</th><th>الترتيب</th><th>المنتجات</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>{[...categories].sort((a, b) => a.position - b.position).map(category => <tr key={category.id}><td><strong dir="ltr">{category.name}</strong></td><td dir="ltr">/{category.slug}</td><td>{category.position}</td><td>{category._count?.products ?? category.products?.length ?? '0'}</td><td><span className={`admin-badge ${category.active ? 'admin-badge-delivered' : 'admin-badge-cancelled'}`}>{category.active ? 'مفعّل' : 'غير مفعّل'}</span></td><td><div className="admin-row-actions"><button className="admin-button admin-button-small" onClick={() => { setEditing(category); setFormError(''); }}>تعديل</button><button type="button" className="admin-button admin-button-small admin-button-danger-outline" onClick={() => setDeleting(category)}>حذف</button></div></td></tr>)}</tbody></table></div>{!categories.length && <div style={{ padding: '2rem 1rem', textAlign: 'center' }}><Empty title="لم تُضف أقسام بعد" text="أضف أقساماً جديدة أو استورد الأقسام القياسية (Casual, Sports, Fashion) لتنظيم التشكيلة." /><button type="button" className="admin-button admin-button-primary" style={{ marginTop: '1rem' }} disabled={seeding} onClick={seedStandardCategories}>{seeding ? 'جارٍ الاستيراد…' : '⚡ استيراد الأقسام القياسية الآن'}</button></div>}</section>}
+    {editing !== undefined && <Modal title={editing ? 'تعديل القسم' : 'إضافة قسم'} onClose={() => setEditing(undefined)}><form onSubmit={submit}>{formError && <div className="admin-notice admin-notice-error" role="alert">{formError}</div>}<label className="admin-field">اسم القسم<input name="name" defaultValue={editing?.name} dir="ltr" required maxLength={100} /></label><label className="admin-field">الرابط المختصر · Slug<input name="slug" defaultValue={editing?.slug} dir="ltr" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={120} /></label><label className="admin-field">ترتيب الظهور<input name="position" type="number" min="0" step="1" defaultValue={editing?.position ?? categories?.length ?? 0} required /></label><label className="admin-checkbox"><input type="checkbox" name="active" defaultChecked={editing?.active ?? true} /> القسم مفعّل</label><p className="admin-info-text">ربط المنتجات بالأقسام متاح من نموذج تعديل كل منتج. ترتيب جميع أزرار الأقسام في الرئيسية من <a className="admin-text-link" href="/admin?view=homepage-layout">ترتيب أقسام الرئيسية</a>.</p><div className="admin-form-footer"><button className="admin-button admin-button-primary" disabled={busy}>{busy ? 'جارٍ الحفظ…' : 'حفظ القسم'}</button><button type="button" className="admin-button" onClick={() => setEditing(undefined)}>إلغاء</button></div></form></Modal>}
+    {deleting && (
+      <Modal title="تأكيد حذف القسم" onClose={() => setDeleting(null)}>
+        <div>
+          <p style={{ marginBottom: '1rem', lineHeight: '1.6' }}>
+            هل أنت متأكد من رغبتك في حذف القسم <strong>«{deleting.name}»</strong>؟
+          </p>
+          {Number(deleting._count?.products ?? 0) > 0 ? (
+            <div className="admin-notice admin-notice-error" role="alert" style={{ marginBottom: '1rem' }}>
+              تنبيه: هناك <strong>{deleting._count?.products}</strong> منتج(ات) مرتبط بهذا القسم. سيتم فك ارتباطها بهذا القسم بأمان دون حذف المنتجات نفسها من المتجر.
+            </div>
+          ) : (
+            <p className="admin-muted" style={{ fontSize: '0.875rem', marginBottom: '1.25rem' }}>
+              هذا القسم لا يحتوي على أي منتجات مرتبطة حالياً.
+            </p>
+          )}
+          <div className="admin-form-footer">
+            <button
+              type="button"
+              className="admin-button admin-button-danger"
+              disabled={busy}
+              onClick={deleteCategory}
+            >
+              {busy ? 'جارٍ الحذف…' : 'تأكيد الحذف'}
+            </button>
+            <button type="button" className="admin-button" onClick={() => setDeleting(null)} disabled={busy}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )}
   </>;
 }
 
@@ -46,9 +105,14 @@ export function ShippingView({ request, notify }: AdminContext) {
     setSeeding(true);
     try {
       const data = await request('/api/admin/shipping/seed', { method: 'POST' });
-      setRows(listOf(data, 'governorates').map(g => ({ ...g, feeInput: toMoneyInput(g.shippingFee), costInput: g.shippingCost == null ? '' : toMoneyInput(g.shippingCost) })));
+      const items = listOf(data, 'governorates');
+      if (items.length > 0) {
+        setRows(items.map(g => ({ ...g, feeInput: toMoneyInput(g.shippingFee), costInput: g.shippingCost == null ? '' : toMoneyInput(g.shippingCost) })));
+      } else {
+        await load();
+      }
       setDirty(false);
-      notify('تم استيراد جميع محافظات مصر الـ 27 بالأسعار الاسترشادية.');
+      notify('تم استيراد جميع محافظات مصر الـ 27 بالأسعار الاسترشادية بنجاح.');
     } catch (err: any) {
       notify(err.message, true);
     } finally {
@@ -146,26 +210,309 @@ export function ExpensesView({ request, notify }: AdminContext) {
 export function SettingsView({ request, notify }: AdminContext) {
   const [settings, setSettings] = useState<RecordData | null>(null);
   const [heroImage, setHeroImage] = useState('');
+  const [storyImage, setStoryImage] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const load = useCallback(async () => { setError(''); try { const data = await request('/api/admin/settings'); const value = data.settings || data; setSettings(value); setHeroImage(value.heroImage || ''); setLogoUrl(value.logoUrl || ''); } catch (error: any) { setError(error.message); } }, [request]);
+  const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const data = await request('/api/admin/settings');
+      const value = data.settings || data;
+      setSettings(value);
+      setHeroImage(value.heroImage || '');
+      setStoryImage(value.storyImage || '');
+      setLogoUrl(value.logoUrl || '');
+    } catch (error: any) {
+      setError(error.message);
+    }
+  }, [request]);
+
   useEffect(() => { void load(); }, [load]);
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true);
-    const form = new FormData(event.currentTarget);
-    try { const fields = ['storeName', 'whatsappPhone', 'instapayPhone', 'heroTitle', 'heroSubtitle', 'seoTitle', 'seoDescription', 'siteUrl']; const payload = Object.fromEntries(fields.map(field => [field, String(form.get(field) || '')])); const socialLinks = Object.fromEntries(['instagram', 'facebook', 'tiktok'].filter(key => form.get(key)).map(key => [key, form.get(key)])); await request('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ ...payload, heroImage, logoUrl, socialLinks }) }); notify('تم حفظ إعدادات المتجر.'); }
-    catch (error: any) { notify(error.message, true); }
-    finally { setBusy(false); }
+
+  async function handleImageUpload(file: File, target: 'hero' | 'story' | 'logo') {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      notify('استخدم صورة JPEG أو PNG أو WebP بحجم حتى 5 ميجابايت.', true);
+      return;
+    }
+    setUploadingTarget(target);
+    try {
+      const body = new FormData();
+      body.append('image', file);
+      const res = await request('/api/admin/uploads', { method: 'POST', body });
+      if (target === 'hero') setHeroImage(res.url);
+      else if (target === 'story') setStoryImage(res.url);
+      else if (target === 'logo') setLogoUrl(res.url);
+      notify('تم رفع الصورة بنجاح. اضغط «حفظ إعدادات المتجر» لحفظ التغييرات.');
+    } catch (error: any) {
+      notify(error.message, true);
+    } finally {
+      setUploadingTarget(null);
+    }
   }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    const form = new FormData(event.currentTarget);
+    try {
+      const fields = [
+        'storeName', 'whatsappPhone', 'instapayPhone', 'siteUrl',
+        'heroBadge', 'heroTitle', 'heroSubtitle', 'heroDescription', 'heroCtaText', 'heroCtaLink',
+        'storyEyebrow', 'storyTitle', 'storyDescription', 'storyCtaText', 'storyCtaLink',
+        'collectionEyebrow', 'collectionTitle', 'collectionSubtitle',
+        'seoTitle', 'seoDescription'
+      ];
+      const payload = Object.fromEntries(fields.map(field => [field, String(form.get(field) ?? '')]));
+      const socialLinks = Object.fromEntries(['instagram', 'facebook', 'tiktok'].filter(key => form.get(key)).map(key => [key, form.get(key)]));
+      await request('/api/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...payload,
+          heroImage,
+          storyImage,
+          logoUrl,
+          socialLinks
+        })
+      });
+      notify('تم حفظ جميع إعدادات وبانرات المتجر بنجاح.');
+    } catch (error: any) {
+      notify(error.message, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error) return <LoadError message={error} retry={load} />;
   if (!settings) return <Loading />;
-  return <form onSubmit={save} className="admin-settings-form"><section className="admin-panel"><div className="admin-section-heading"><div><h2>هوية المتجر والتواصل</h2><p>بيانات تظهر للعملاء في المتجر وCheckout.</p></div><span className="admin-panel-mark">01</span></div><div className="admin-form-grid"><label className="admin-field">اسم المتجر / الشعار النصّي<input name="storeName" defaultValue={settings.storeName || 'SHOES GUN'} required maxLength={100} /></label><label className="admin-field">الدومين النهائي<input name="siteUrl" type="url" dir="ltr" defaultValue={settings.siteUrl || ''} required placeholder="https://shoesgun.com" /></label><label className="admin-field">رقم WhatsApp<input name="whatsappPhone" dir="ltr" defaultValue={settings.whatsappPhone || '201003370553'} required maxLength={30} /></label><label className="admin-field">رقم InstaPay<input name="instapayPhone" dir="ltr" defaultValue={settings.instapayPhone || '01003370553'} required maxLength={30} /></label></div></section>
-    <section className="admin-panel"><div className="admin-section-heading"><div><h2>الشعار</h2><p>اترك رابط الشعار فارغًا لاستخدام الشعار النصّي البسيط للمتجر.</p></div><span className="admin-panel-mark">02</span></div><label className="admin-field">رابط صورة الشعار (اختياري)<input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} dir="ltr" placeholder="/media/products/… أو https://…" maxLength={500} /></label><div className="admin-inline-actions"><label className="admin-button admin-upload-button">{uploading ? 'جارٍ رفع الصورة…' : 'رفع صورة شعار'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) { notify('استخدم صورة JPEG أو PNG أو WebP حتى 5 ميجابايت.', true); return; } setUploading(true); try { const body = new FormData(); body.append('image', file); setLogoUrl((await request('/api/admin/uploads', { method: 'POST', body })).url); notify('تم رفع الشعار. احفظ الإعدادات لتطبيقه.'); } catch (error: any) { notify(error.message, true); } finally { setUploading(false); } }} /></label>{logoUrl && <button type="button" className="admin-text-link admin-danger-text" onClick={() => setLogoUrl('')}>استخدام الشعار النصّي</button>}</div>{logoUrl && <div className="admin-logo-preview"><img src={logoUrl} alt="معاينة شعار المتجر" /></div>}</section>
-    <section className="admin-panel"><div className="admin-section-heading"><div><h2>البانر الرئيسي</h2><p>العنوان والصورة التي تستقبل زوار المتجر.</p></div><span className="admin-panel-mark">03</span></div><div className="admin-form-grid"><label className="admin-field">العنوان الرئيسي<input name="heroTitle" defaultValue={settings.heroTitle} required maxLength={180} /></label><label className="admin-field">النص المصاحب<input name="heroSubtitle" defaultValue={settings.heroSubtitle} maxLength={400} /></label><label className="admin-field admin-span-2">رابط صورة البانر<input value={heroImage} onChange={e => setHeroImage(e.target.value)} dir="ltr" placeholder="/media/products/… أو https://…" required /></label></div><label className="admin-button admin-upload-button">{uploading ? 'جارٍ رفع الصورة…' : 'رفع صورة البانر'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) { notify('استخدم صورة JPEG أو PNG أو WebP حتى 5 ميجابايت.', true); return; } setUploading(true); try { const body = new FormData(); body.append('image', file); setHeroImage((await request('/api/admin/uploads', { method: 'POST', body })).url); notify('تم رفع صورة البانر. احفظ الإعدادات لتطبيقها.'); } catch (error: any) { notify(error.message, true); } finally { setUploading(false); } }} /></label>{heroImage && <div className="admin-banner-preview"><img src={heroImage} alt="معاينة صورة البانر الرئيسي" /></div>}</section>
-    <section className="admin-panel"><div className="admin-section-heading"><div><h2>محركات البحث وروابط التواصل</h2><p>عنوان ووصف افتراضيان للصفحات العامة.</p></div><span className="admin-panel-mark">03</span></div><div className="admin-form-grid"><label className="admin-field admin-span-2">عنوان SEO<input name="seoTitle" defaultValue={settings.seoTitle} required maxLength={180} /></label><label className="admin-field admin-span-2">وصف SEO<textarea name="seoDescription" defaultValue={settings.seoDescription} rows={3} maxLength={500} /></label><label className="admin-field">Instagram<input name="instagram" type="url" defaultValue={settings.socialLinks?.instagram || ''} dir="ltr" placeholder="https://instagram.com/…" /></label><label className="admin-field">Facebook<input name="facebook" type="url" defaultValue={settings.socialLinks?.facebook || ''} dir="ltr" placeholder="https://facebook.com/…" /></label><label className="admin-field">TikTok<input name="tiktok" type="url" defaultValue={settings.socialLinks?.tiktok || ''} dir="ltr" placeholder="https://tiktok.com/@…" /></label></div></section><div className="admin-sticky-save"><span>تُطبق البيانات على المتجر بعد الحفظ.</span><button className="admin-button admin-button-primary" disabled={busy || uploading}>{busy ? 'جارٍ الحفظ…' : 'حفظ إعدادات المتجر'}</button></div>
-  </form>;
+
+  return (
+    <form onSubmit={save} className="admin-settings-form">
+      {/* 01: هوية المتجر والتواصل */}
+      <section className="admin-panel">
+        <div className="admin-section-heading">
+          <div>
+            <h2>هوية المتجر والتواصل</h2>
+            <p>البيانات الأساسية التي تظهر للعملاء في واجهة المتجر ورسائل التواصل والدفع.</p>
+          </div>
+          <span className="admin-panel-mark">01</span>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-field">
+            اسم المتجر / الشعار النصّي
+            <input name="storeName" defaultValue={settings.storeName || 'SHOES GUN'} required maxLength={100} />
+          </label>
+          <label className="admin-field">
+            الدومين النهائي (Site URL)
+            <input name="siteUrl" type="url" dir="ltr" defaultValue={settings.siteUrl || ''} required placeholder="https://shoesgun.com" />
+          </label>
+          <label className="admin-field">
+            رقم WhatsApp (لخدمة العملاء والطلبات)
+            <input name="whatsappPhone" dir="ltr" defaultValue={settings.whatsappPhone || '201003370553'} required maxLength={30} />
+          </label>
+          <label className="admin-field">
+            رقم حساب InstaPay (للتحويل المالي)
+            <input name="instapayPhone" dir="ltr" defaultValue={settings.instapayPhone || '01003370553'} required maxLength={30} />
+          </label>
+        </div>
+      </section>
+
+      {/* 02: الشعار */}
+      <section className="admin-panel">
+        <div className="admin-section-heading">
+          <div>
+            <h2>الشعار (Logo)</h2>
+            <p>اترك رابط الشعار فارغًا لاستخدام الشعار النصّي البسيط للمتجر.</p>
+          </div>
+          <span className="admin-panel-mark">02</span>
+        </div>
+        <label className="admin-field">
+          رابط صورة الشعار (اختياري)
+          <input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} dir="ltr" placeholder="/media/products/… أو https://…" maxLength={500} />
+        </label>
+        <div className="admin-inline-actions">
+          <label className="admin-button admin-upload-button">
+            {uploadingTarget === 'logo' ? 'جارٍ رفع الصورة…' : 'رفع صورة شعار'}
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={!!uploadingTarget} onChange={e => { const f = e.target.files?.[0]; if (f) void handleImageUpload(f, 'logo'); }} />
+          </label>
+          {logoUrl && <button type="button" className="admin-text-link admin-danger-text" onClick={() => setLogoUrl('')}>استخدام الشعار النصّي</button>}
+        </div>
+        {logoUrl && (
+          <div className="admin-logo-preview">
+            <img src={logoUrl} alt="معاينة شعار المتجر" />
+          </div>
+        )}
+      </section>
+
+      {/* 03: البانر والهيرو الرئيسي */}
+      <section className="admin-panel">
+        <div className="admin-section-heading">
+          <div>
+            <h2>البانر الرئيسي والواجهة (Hero Banner)</h2>
+            <p>تخصيص العناوين الترويجية، الشارة، الأزرار، وصورة البانر التي ترحب بزوار الصفحة الرئيسية.</p>
+          </div>
+          <span className="admin-panel-mark">03</span>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-field">
+            النص الترويجي للشارة (Badge)
+            <input name="heroBadge" defaultValue={settings.heroBadge || 'مش مجرد حذاء. دي شخصيتك.'} maxLength={200} placeholder="مثال: مش مجرد حذاء. دي شخصيتك." />
+          </label>
+          <label className="admin-field">
+            العنوان الرئيسي (Headline)
+            <input name="heroTitle" defaultValue={settings.heroTitle || 'خطوتك. ستايلك. قواعدك.'} required maxLength={300} placeholder="مثال: خطوتك. ستايلك. قواعدك." />
+          </label>
+          <label className="admin-field admin-span-2">
+            العنوان الفرعي (Subtitle)
+            <input name="heroSubtitle" defaultValue={settings.heroSubtitle || 'من أول خروجة لآخر مشوار. اكتشف أحذية بتكمّل ستايلك وتخلي كل خطوة ليك مختلفة.'} maxLength={500} />
+          </label>
+          <label className="admin-field admin-span-2">
+            الوصف الإضافي / ملاحظة البانر
+            <input name="heroDescription" defaultValue={settings.heroDescription || 'خطوة واثقة. كل يوم.'} maxLength={1000} placeholder="مثال: خطوة واثقة. كل يوم." />
+          </label>
+          <label className="admin-field">
+            نص زر الإجراء (CTA Button Text)
+            <input name="heroCtaText" defaultValue={settings.heroCtaText || 'اكتشف التشكيلة'} maxLength={100} placeholder="اكتشف التشكيلة" />
+          </label>
+          <label className="admin-field">
+            رابط الزر (CTA Button Link)
+            <input name="heroCtaLink" dir="ltr" defaultValue={settings.heroCtaLink || '#collection'} maxLength={500} placeholder="#collection أو /products" />
+          </label>
+          <label className="admin-field admin-span-2">
+            رابط صورة البانر الرئيسي
+            <input value={heroImage} onChange={e => setHeroImage(e.target.value)} dir="ltr" placeholder="/media/products/hero.webp أو https://…" required maxLength={500} />
+          </label>
+        </div>
+        <div className="admin-inline-actions">
+          <label className="admin-button admin-upload-button">
+            {uploadingTarget === 'hero' ? 'جارٍ رفع الصورة…' : 'رفع صورة البانر الرئيسي'}
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={!!uploadingTarget} onChange={e => { const f = e.target.files?.[0]; if (f) void handleImageUpload(f, 'hero'); }} />
+          </label>
+        </div>
+        {heroImage && (
+          <div className="admin-banner-preview" style={{ marginTop: '1rem', maxHeight: '240px', overflow: 'hidden', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+            <img src={heroImage} alt="معاينة صورة البانر الرئيسي" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        )}
+      </section>
+
+      {/* 04: قسم قصة وهوية البراند */}
+      <section className="admin-panel">
+        <div className="admin-section-heading">
+          <div>
+            <h2>قسم قصة البراند والبانر الإعلاني (Brand Story & Banner)</h2>
+            <p>القسم التعريفي الأبرز في الرئيسية الذي يعبر عن روح العلامة التجارية وجودة المنتجات.</p>
+          </div>
+          <span className="admin-panel-mark">04</span>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-field">
+            الترويسة العلوية (Eyebrow)
+            <input name="storyEyebrow" defaultValue={settings.storyEyebrow || 'الشارع ملعبك'} maxLength={200} placeholder="مثال: الشارع ملعبك" />
+          </label>
+          <label className="admin-field">
+            العنوان الرئيسي لقسم القصة (Story Title)
+            <input name="storyTitle" defaultValue={settings.storyTitle || 'مش لازم تتكلم.. خلّي خطوتك تقول.'} maxLength={300} placeholder="مثال: مش لازم تتكلم.. خلّي خطوتك تقول." />
+          </label>
+          <label className="admin-field admin-span-2">
+            الفقرات الوصفية لهوية البراند
+            <textarea name="storyDescription" defaultValue={settings.storyDescription || 'في SHOES GUN، بنؤمن إن الستايل بيبدأ من تحت. من حذاء مريح في يوم طويل، لتصميم يلفت النظر في خروجة مع صحابك.\n\nتشكيلة مختارة بعناية، تفاصيل بسيطة، وشخصية واضحة. اختار اللي يشبهك، وامشي بطريقتك.'} rows={4} maxLength={2000} placeholder="اكتب نبذة العلامة التجارية وقيمتها..." />
+          </label>
+          <label className="admin-field">
+            نص زر الاستكشاف (Story CTA Text)
+            <input name="storyCtaText" defaultValue={settings.storyCtaText || 'اختار ستايلك'} maxLength={100} placeholder="مثال: اختار ستايلك" />
+          </label>
+          <label className="admin-field">
+            رابط الزر (Story CTA Link)
+            <input name="storyCtaLink" dir="ltr" defaultValue={settings.storyCtaLink || '/category/fashion'} maxLength={500} placeholder="مثال: /category/fashion أو /products" />
+          </label>
+          <label className="admin-field admin-span-2">
+            رابط صورة البانر الإعلاني لقسم القصة
+            <input value={storyImage} onChange={e => setStoryImage(e.target.value)} dir="ltr" placeholder="/media/products/sneaker-03.webp أو https://…" maxLength={500} />
+          </label>
+        </div>
+        <div className="admin-inline-actions">
+          <label className="admin-button admin-upload-button">
+            {uploadingTarget === 'story' ? 'جارٍ رفع الصورة…' : 'رفع صورة بانر القصة'}
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={!!uploadingTarget} onChange={e => { const f = e.target.files?.[0]; if (f) void handleImageUpload(f, 'story'); }} />
+          </label>
+        </div>
+        {storyImage && (
+          <div className="admin-banner-preview" style={{ marginTop: '1rem', maxHeight: '240px', overflow: 'hidden', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+            <img src={storyImage} alt="معاينة صورة بانر القصة" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        )}
+      </section>
+
+      {/* 05: عناوين قسم التشكيلة */}
+      <section className="admin-panel">
+        <div className="admin-section-heading">
+          <div>
+            <h2>عناوين قسم استعراض التشكيلة (Collection Section)</h2>
+            <p>تخصيص ترويسة وعنوان ووصف قسم المنتجات وتبويبات التشكيلة في الصفحة الرئيسية.</p>
+          </div>
+          <span className="admin-panel-mark">05</span>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-field">
+            الترويسة العلوية (Collection Eyebrow)
+            <input name="collectionEyebrow" defaultValue={settings.collectionEyebrow || 'اختيارات تستاهل خطوتك'} maxLength={200} placeholder="مثال: اختيارات تستاهل خطوتك" />
+          </label>
+          <label className="admin-field">
+            العنوان الرئيسي للتشكيلة (Collection Title)
+            <input name="collectionTitle" defaultValue={settings.collectionTitle || 'Browse the Collection'} maxLength={300} placeholder="مثال: Browse the Collection" />
+          </label>
+          <label className="admin-field admin-span-2">
+            الوصف الفرعي للتشكيلة (Collection Subtitle)
+            <input name="collectionSubtitle" defaultValue={settings.collectionSubtitle || 'Choose the right style for your day.'} maxLength={500} placeholder="مثال: Choose the right style for your day." />
+          </label>
+        </div>
+      </section>
+
+      {/* 06: محركات البحث والتواصل */}
+      <section className="admin-panel">
+        <div className="admin-section-heading">
+          <div>
+            <h2>محركات البحث وروابط التواصل (SEO & Social)</h2>
+            <p>العنوان والوصف الافتراضي لنتائج بحث Google وحسابات التواصل الاجتماعي.</p>
+          </div>
+          <span className="admin-panel-mark">06</span>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-field admin-span-2">
+            عنوان المتجر في محركات البحث (SEO Title)
+            <input name="seoTitle" defaultValue={settings.seoTitle} required maxLength={180} />
+          </label>
+          <label className="admin-field admin-span-2">
+            وصف المتجر في محركات البحث (SEO Description)
+            <textarea name="seoDescription" defaultValue={settings.seoDescription} rows={3} maxLength={500} />
+          </label>
+          <label className="admin-field">
+            Instagram
+            <input name="instagram" type="url" defaultValue={settings.socialLinks?.instagram || ''} dir="ltr" placeholder="https://instagram.com/…" />
+          </label>
+          <label className="admin-field">
+            Facebook
+            <input name="facebook" type="url" defaultValue={settings.socialLinks?.facebook || ''} dir="ltr" placeholder="https://facebook.com/…" />
+          </label>
+          <label className="admin-field">
+            TikTok
+            <input name="tiktok" type="url" defaultValue={settings.socialLinks?.tiktok || ''} dir="ltr" placeholder="https://tiktok.com/@…" />
+          </label>
+        </div>
+      </section>
+
+      {/* الشريط الثابت للحفظ */}
+      <div className="admin-sticky-save">
+        <span>تُطبق جميع التعديلات فور الحفظ على المتجر والصفحة الرئيسية.</span>
+        <button className="admin-button admin-button-primary" disabled={busy || !!uploadingTarget}>
+          {busy ? 'جارٍ الحفظ…' : 'حفظ إعدادات المتجر'}
+        </button>
+      </div>
+    </form>
+  );
 }
 
 export function UsersView({ request, notify, session }: AdminContext) {
